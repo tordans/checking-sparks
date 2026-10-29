@@ -17,7 +17,7 @@ all-inkl webspace
     api/{src,migrations,vendor} PHP code (not public)
     logs/                       api.log (not public, .htaccess denies all)
     public/                     document root of check.ingsparks.de
-      .htaccess  index.html  assets/  sw.js  manifest.webmanifest  icons/  api/index.php
+      .htaccess  index.html  assets/  sw.js  manifest.webmanifest  pwa-icons/  api/index.php
   cron (KAS)                    every 15 min: GET /api/push/run?key=<cronKey>
 ```
 
@@ -143,9 +143,6 @@ as a last resort, change it to `loose` in both upload steps.
 - [ ] Keys generated; all 13 secrets set in the `production` environment.
 - [ ] Merge to `main` (or "Run workflow"). All steps green, including "Check the live site".
 - [ ] Open <https://check.ingsparks.de/> (loads), `/api/health` (`{"ok":true,"commit":"..."}`).
-- [ ] If `/icons/icon-192.png` is a 404 although the file was uploaded, the host has a global
-      `/icons/` alias (Debian's default Apache has one); rename the folder `public/icons` to
-      something else and update `manifest.webmanifest`, `index.html` and `public/sw.js`.
 - [ ] KAS cron job created (section 1, step 6). Check with
       `curl 'https://check.ingsparks.de/api/push/run?key=<cronKey>'` -> `{"sent":0,...}`.
 - [ ] Pair the first device and enable notifications (section 6); press "Test senden".

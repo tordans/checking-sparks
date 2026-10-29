@@ -57,8 +57,8 @@ fetch /sw.js
 if [ "$status" = 200 ] && printf '%s' "$headers" | grep -Eq 'content-type: (text|application)/javascript'; then pass "/sw.js is JavaScript"; else fail "/sw.js -> $status"; fi
 fetch /manifest.webmanifest
 if [ "$status" = 200 ] && printf '%s' "$body" | grep -q '"Checking Sparks"'; then pass "/manifest.webmanifest"; else fail "/manifest.webmanifest -> $status"; fi
-expect_status /icons/icon-192.png 200
-expect_status /icons/icon-512.png 200
+expect_status /pwa-icons/icon-192.png 200
+expect_status /pwa-icons/icon-512.png 200
 
 # 5. API: health shows the deployed commit, everything else needs a key
 for attempt in 1 2 3 4 5; do

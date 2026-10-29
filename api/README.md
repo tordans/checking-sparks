@@ -20,7 +20,7 @@ JSON in and out. Every response has `Cache-Control: no-store`. Errors are `{ "er
 | `GET /api/push/vapid-public-key` | family | `200 { key }` (`503` if not configured)                                                                                                                                                                                                                                                                     |
 | `POST /api/push/subscriptions`   | family | body `{ endpoint, keys: { p256dh, auth }, label? }`; upsert by endpoint; `201 { ok: true }`                                                                                                                                                                                                                 |
 | `DELETE /api/push/subscriptions` | family | body `{ endpoint }`; `204` (also if unknown)                                                                                                                                                                                                                                                                |
-| `POST /api/push/test`            | family | sends `{ title: "Checking Sparks", body: "Test-Benachrichtigung", path: "/" }` to all subscriptions; `200 { sent, failed, removed }`                                                                                                                                                                        |
+| `POST /api/push/test`            | family | sends `{ id: "test", title: "Checking Sparks", body: "Test-Benachrichtigung", path: "/" }` to all subscriptions; `200 { sent, failed, removed }`                                                                                                                                                            |
 | `GET`/`POST /api/push/run`       | cron   | sends due reminders, see below; `200 { sent, failed, removed, skipped }`                                                                                                                                                                                                                                    |
 | `POST /api/migrate`              | deploy | applies pending `migrations/*.sql`; `200 { applied: [names] }`                                                                                                                                                                                                                                              |
 
@@ -49,7 +49,8 @@ Sent/skipped reminders are kept for 30 days (so a later plan cannot re-add them)
 
 1. Unsent reminders older than **3 days** (`due_at`) are marked `sent_at = now, skipped = 1` and never sent.
 2. Unsent reminders with `due_at <= now` (oldest first, at most 200 and about 20 s per run) are
-   sent to every subscription as JSON `{ title, body, path }`, TTL 1 day, urgency `normal`.
+   sent to every subscription as JSON `{ id, title, body, path }` (`id` = reminder id, used by the
+   service worker as notification tag), TTL 1 day, urgency `normal`.
 3. A reminder is claimed (`sent_at` set) before sending so overlapping cron runs cannot double-send.
    If **no** subscription received it (all failed or all gone), the claim is released and it is
    retried on the next run (until it goes stale). With no subscriptions at all nothing is claimed.
@@ -99,7 +100,7 @@ check/                         FTP root of the dedicated FTP user
   logs/                        optional log_file target (not public)
   public/                      document root (KAS subdomain target: check/public/)
     .htaccess                  from api/deploy/htaccess
-    index.html, assets/, sw.js, manifest.webmanifest, icons/   the Vite build (dist/)
+    index.html, assets/, sw.js, manifest.webmanifest, pwa-icons/   the Vite build (dist/)
     api/index.php              copy of api/public/index.php
 ```
 

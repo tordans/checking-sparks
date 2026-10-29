@@ -79,7 +79,7 @@ jobs:
           # after its hashed files and the new API code are in place
           mv deploy-out/public/index.html deploy-index/public/index.html
 
-          for file in index.html sw.js manifest.webmanifest icons/icon-192.png icons/icon-512.png; do
+          for file in index.html sw.js manifest.webmanifest pwa-icons/icon-192.png pwa-icons/icon-512.png; do
             test -f "dist/$file" || { echo "dist/$file is missing"; exit 1; }
           done
 

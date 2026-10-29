@@ -30,7 +30,7 @@ src/
   routes/        TanStack Router file routes (code-based route tree in router.tsx is fine too)
   components/    UI building blocks
 public/
-  manifest.webmanifest, sw.js, icons/
+  manifest.webmanifest, sw.js, pwa-icons/
 api/
   public/index.php          entry (copied to dist/api/index.php on deploy)
   src/                      Router.php, Db.php, handlers, WebPush sending
@@ -202,8 +202,9 @@ replaces the unsent ones, so booking a date stops the booking reminders.
 ## PWA and push
 
 - `public/manifest.webmanifest` (`display: standalone`, German name, icons), `public/sw.js`
-  written by hand: app-shell cache, `push` → `showNotification(title, { body, data: { path } })`,
-  `notificationclick` → focus an existing window and navigate, or `openWindow(path)`.
+  written by hand: app-shell cache, `push` → `showNotification(title, { body, tag: id, data: { path } })`
+  with the payload `{ id, title, body, path }` (`id` = reminder id, or `"test"`; the tag replaces an
+  older notification of the same reminder), `notificationclick` → focus an existing window and navigate, or `openWindow(path)`.
 - Subscribe only after a user gesture (button in settings); on iOS only in the installed app —
   the UI explains "Zum Home-Bildschirm hinzufügen" when `Notification` is missing.
 - `sw.js`: `index.html` network-first with cache fallback (every navigation gets the SPA shell),

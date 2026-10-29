@@ -68,7 +68,7 @@ final class PushService
                 continue;
             }
 
-            $payload = self::payload((string) $reminder['title'], (string) $reminder['body'], (string) $reminder['path']);
+            $payload = self::payload((string) $reminder['id'], (string) $reminder['title'], (string) $reminder['body'], (string) $reminder['path']);
             $delivered = $this->deliver($subscriptions, $payload, $nowStr, $stats);
 
             if ($delivered === 0) {
@@ -91,7 +91,7 @@ final class PushService
         $subscriptions = $this->loadSubscriptions();
         $this->deliver(
             $subscriptions,
-            self::payload('Checking Sparks', 'Test-Benachrichtigung', '/'),
+            self::payload('test', 'Checking Sparks', 'Test-Benachrichtigung', '/'),
             Db::format(($this->clock)()),
             $stats,
         );
@@ -99,9 +99,13 @@ final class PushService
         return $stats;
     }
 
-    public static function payload(string $title, string $body, string $path): string
+    /**
+     * JSON text the service worker shows. `id` is the reminder id (the test push uses "test"); the
+     * service worker uses it as notification tag, so a newer notification replaces an older one.
+     */
+    public static function payload(string $id, string $title, string $body, string $path): string
     {
-        return json_encode(['title' => $title, 'body' => $body, 'path' => $path], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        return json_encode(['id' => $id, 'title' => $title, 'body' => $body, 'path' => $path], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
     }
 
     /**

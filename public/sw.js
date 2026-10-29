@@ -9,8 +9,8 @@ const SHELL_CACHE = `shell-${CACHE_VERSION}`
 const ASSET_CACHE = `assets-${CACHE_VERSION}`
 const MAX_ASSET_ENTRIES = 80
 
-const ICON = '/icons/icon-192.png'
-const BADGE = '/icons/badge-96.png'
+const ICON = '/pwa-icons/icon-192.png'
+const BADGE = '/pwa-icons/badge-96.png'
 const DEFAULT_PATH = '/'
 
 self.addEventListener('install', (event) => {

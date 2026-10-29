@@ -43,7 +43,7 @@ final class PushTest extends ApiTestCase
 
         self::assertCount(4, $this->sender->sent);
         $first = $this->sender->sent[0];
-        self::assertSame(['title' => 'Lena: Zahnarzt buchen', 'body' => 'Termin bis 31.03. machen.', 'path' => '/person/p1/vorsorge/c1'], $first['payload']);
+        self::assertSame(['id' => 'due', 'title' => 'Lena: Zahnarzt buchen', 'body' => 'Termin bis 31.03. machen.', 'path' => '/person/p1/vorsorge/c1'], $first['payload']);
         self::assertSame(86400, $first['ttl']);
         self::assertSame('normal', $first['urgency']);
         self::assertEqualsCanonicalizing([self::A, self::B], array_unique(array_column($this->sender->sent, 'endpoint')));
@@ -201,7 +201,7 @@ final class PushTest extends ApiTestCase
         self::assertSame(200, $r->status);
         self::assertSame(['sent' => 2, 'failed' => 0, 'removed' => 0], $r->data());
         foreach ($this->sender->sent as $sent) {
-            self::assertSame(['title' => 'Checking Sparks', 'body' => 'Test-Benachrichtigung', 'path' => '/'], $sent['payload']);
+            self::assertSame(['id' => 'test', 'title' => 'Checking Sparks', 'body' => 'Test-Benachrichtigung', 'path' => '/'], $sent['payload']);
             self::assertSame(86400, $sent['ttl']);
             self::assertSame('normal', $sent['urgency']);
         }

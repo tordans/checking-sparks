@@ -12,7 +12,7 @@ interface PushSender
 
     /**
      * @param array{endpoint: string, p256dh: string, auth: string} $subscription
-     * @param string $payload JSON text (title, body, path)
+     * @param string $payload JSON text (id, title, body, path)
      */
     public function send(array $subscription, string $payload, int $ttlSeconds, string $urgency): PushResult;
 }
