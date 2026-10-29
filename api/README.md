@@ -11,18 +11,18 @@ document, the reminder plan (title/body/path/time, needed to send pushes), and p
 
 JSON in and out. Every response has `Cache-Control: no-store`. Errors are `{ "error": "<code>" }`.
 
-| Method + path | Auth | Result |
-| --- | --- | --- |
-| `GET /api/health` | none | `200 { ok: true, commit }` (works without a database) |
-| `GET /api/doc` | family | `200 { version, envelope }` + `ETag: "<version>"`; `304` with matching `If-None-Match`; `404` if no doc yet |
-| `PUT /api/doc` | family | body `{ envelope }`. `If-Match: "<version>"` updates, `If-None-Match: *` creates. `200 { version }` + `ETag`; `409 { version, envelope }` (+ `ETag`) on mismatch or when creating over an existing doc; `404` for `If-Match` without a doc; `428` without precondition; `422` for an empty/invalid envelope |
-| `PUT /api/reminders` | family | body `{ reminders: Reminder[] }`. In one transaction: deletes all unsent reminders, inserts the given ones, skips ids that already exist as sent/skipped. `200 { count }` (= inserted); `422` on invalid shape (`{ error: "invalid_reminder", index, field }`) or more than 2000 |
-| `GET /api/push/vapid-public-key` | family | `200 { key }` (`503` if not configured) |
-| `POST /api/push/subscriptions` | family | body `{ endpoint, keys: { p256dh, auth }, label? }`; upsert by endpoint; `201 { ok: true }` |
-| `DELETE /api/push/subscriptions` | family | body `{ endpoint }`; `204` (also if unknown) |
-| `POST /api/push/test` | family | sends `{ title: "Checking Sparks", body: "Test-Benachrichtigung", path: "/" }` to all subscriptions; `200 { sent, failed, removed }` |
-| `GET`/`POST /api/push/run` | cron | sends due reminders, see below; `200 { sent, failed, removed, skipped }` |
-| `POST /api/migrate` | deploy | applies pending `migrations/*.sql`; `200 { applied: [names] }` |
+| Method + path                    | Auth   | Result                                                                                                                                                                                                                                                                                                      |
+| -------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/health`                | none   | `200 { ok: true, commit }` (works without a database)                                                                                                                                                                                                                                                       |
+| `GET /api/doc`                   | family | `200 { version, envelope }` + `ETag: "<version>"`; `304` with matching `If-None-Match`; `404` if no doc yet                                                                                                                                                                                                 |
+| `PUT /api/doc`                   | family | body `{ envelope }`. `If-Match: "<version>"` updates, `If-None-Match: *` creates. `200 { version }` + `ETag`; `409 { version, envelope }` (+ `ETag`) on mismatch or when creating over an existing doc; `404` for `If-Match` without a doc; `428` without precondition; `422` for an empty/invalid envelope |
+| `PUT /api/reminders`             | family | body `{ reminders: Reminder[] }`. In one transaction: deletes all unsent reminders, inserts the given ones, skips ids that already exist as sent/skipped. `200 { count }` (= inserted); `422` on invalid shape (`{ error: "invalid_reminder", index, field }`) or more than 2000                            |
+| `GET /api/push/vapid-public-key` | family | `200 { key }` (`503` if not configured)                                                                                                                                                                                                                                                                     |
+| `POST /api/push/subscriptions`   | family | body `{ endpoint, keys: { p256dh, auth }, label? }`; upsert by endpoint; `201 { ok: true }`                                                                                                                                                                                                                 |
+| `DELETE /api/push/subscriptions` | family | body `{ endpoint }`; `204` (also if unknown)                                                                                                                                                                                                                                                                |
+| `POST /api/push/test`            | family | sends `{ title: "Checking Sparks", body: "Test-Benachrichtigung", path: "/" }` to all subscriptions; `200 { sent, failed, removed }`                                                                                                                                                                        |
+| `GET`/`POST /api/push/run`       | cron   | sends due reminders, see below; `200 { sent, failed, removed, skipped }`                                                                                                                                                                                                                                    |
+| `POST /api/migrate`              | deploy | applies pending `migrations/*.sql`; `200 { applied: [names] }`                                                                                                                                                                                                                                              |
 
 Other rules:
 
