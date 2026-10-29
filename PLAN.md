@@ -1,4 +1,4 @@
-# Health Tracker – Plan (Entwurf, 2026-10-21)
+# Checking Sparks – Plan (Entwurf, 2026-10-21)
 
 Familien-Werkzeug für wiederkehrende Arzttermine (Vorsorge).
 Grundlage: [docs/research.md](docs/research.md).
@@ -144,14 +144,14 @@ Noch offen:
 
 - Cronjobs bei all-inkl im Tarif prüfen (KAS → Tools → Cronjobs ruft eine URL auf); der Cron
   wäre dann ein geschützter HTTP-Endpunkt `POST /api/push/run`.
-- Name und Domain (Abschnitt 10).
+- Hero-Subline und Support-Zeile für Checking Sparks.
 
-## 10. Name und Domain ❓
+## 10. Name und Domain
 
-Domain-Regel aus der ingsparks-Familie: `<stamm>.ingsparks.de` liest sich als
-„<Stamm>ing Sparks“ und benennt die Aufgabe des Werkzeugs. Vergeben: `fly` (Flying Sparks, Blog),
-`tim` (Timing Sparks, Zeitzonen). Alternative: `<name>.wwwfiles.de` ohne Markenbezug.
+**Entschieden (2026-10-29): Checking Sparks – `check.ingsparks.de`.**
 
-Vorschlag für diese App: **Checking Sparks** – `check.ingsparks.de`.
-Check-up ist die Aufgabe, „abhaken“ der zweite Sinn. Plan B: **Booking Sparks** –
-`book.ingsparks.de` (benennt die Aktion, klingt aber nach Buchungsplattform).
+- Domain-Regel der ingsparks-Familie: `<stamm>.ingsparks.de` liest sich als „<Stamm>ing Sparks“
+  und benennt die Aufgabe. Check-up ist die Aufgabe, „abhaken“ der zweite Sinn.
+- Wortmarke „Checking Sparks“ in einem Gewicht; Tab-Titel = Produktname.
+- Subdomain im all-inkl-KAS anlegen, Zielverzeichnis `check/public/`, Let's Encrypt aktivieren.
+- Plan B (verworfen): Booking Sparks – `book.ingsparks.de`, klingt nach Buchungsplattform.
