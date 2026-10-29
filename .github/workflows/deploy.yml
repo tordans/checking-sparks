@@ -1,0 +1,190 @@
+name: Deploy
+
+# Builds the app, tests the API, uploads both to the all-inkl webspace via FTPS, migrates the
+# database and checks that the new commit is live. See docs/deploy.md for the one-time setup and
+# the list of secrets (GitHub environment "production").
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One deploy at a time; a running deploy is never cancelled half way (a half-uploaded state is bad).
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  SITE_URL: https://check.ingsparks.de
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+
+      - run: bun install --frozen-lockfile
+
+      - name: Check (types, lint, format, tests)
+        run: bun run check-ci
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_sqlite, mbstring, curl, openssl, gmp
+          tools: composer:v2
+          coverage: none
+
+      - name: API tests (with dev dependencies)
+        working-directory: api
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress
+          find src bin public tests -name '*.php' -print0 | xargs -0 -n1 php -l > /dev/null
+          vendor/bin/phpunit
+
+      - name: API production dependencies
+        working-directory: api
+        run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-progress
+
+      - name: Build the app
+        run: bun run build
+
+      - name: Assemble the upload folders
+        run: |
+          set -euo pipefail
+          rm -rf deploy-out deploy-index
+          mkdir -p deploy-out/api deploy-out/config deploy-out/logs deploy-out/public/api deploy-index/public
+
+          # public/ = document root: the Vite build, the web server rules and the API entry
+          cp -R dist/. deploy-out/public/
+          cp api/deploy/htaccess deploy-out/public/.htaccess
+          cp api/public/index.php deploy-out/public/api/index.php
+
+          # api/ = code outside the document root
+          cp -R api/src api/migrations api/vendor deploy-out/api/
+          rm -rf deploy-out/api/vendor/bin
+
+          # logs/ exists so the API can write its log; never served
+          printf 'Require all denied\n' > deploy-out/logs/.htaccess
+
+          # index.html goes up last (second upload), so visitors only switch to the new build
+          # after its hashed files and the new API code are in place
+          mv deploy-out/public/index.html deploy-index/public/index.html
+
+          for file in index.html sw.js manifest.webmanifest icons/icon-192.png icons/icon-512.png; do
+            test -f "dist/$file" || { echo "dist/$file is missing"; exit 1; }
+          done
+
+      - name: Generate config/config.php from secrets
+        env:
+          COMMIT: ${{ github.sha }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          FAMILY_KEY_SHA256: ${{ secrets.FAMILY_KEY_SHA256 }}
+          CRON_KEY_SHA256: ${{ secrets.CRON_KEY_SHA256 }}
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+        run: |
+          set -euo pipefail
+          php > deploy-out/config/config.php <<'PHP'
+          <?php
+          $need = static function (string $name): string {
+              $value = getenv($name);
+              if ($value === false || $value === '') {
+                  fwrite(STDERR, "Missing secret: $name\n");
+                  exit(1);
+              }
+              return $value;
+          };
+          $digest = static function (string $name) use ($need): string {
+              $value = strtolower($need($name));
+              if (!preg_match('/^[0-9a-f]{64}$/', $value)) {
+                  fwrite(STDERR, "$name must be a sha256 hex digest (64 characters)\n");
+                  exit(1);
+              }
+              return $value;
+          };
+          $config = [
+              'db' => [
+                  'dsn' => sprintf('mysql:host=%s;dbname=%s;charset=utf8mb4', $need('DB_HOST'), $need('DB_NAME')),
+                  'user' => $need('DB_USER'),
+                  'password' => $need('DB_PASSWORD'),
+              ],
+              'family_key_sha256' => $digest('FAMILY_KEY_SHA256'),
+              'cron_key_sha256' => $digest('CRON_KEY_SHA256'),
+              'deploy_key_sha256' => hash('sha256', $need('DEPLOY_KEY')),
+              'vapid' => [
+                  'public_key' => $need('VAPID_PUBLIC_KEY'),
+                  'private_key' => $need('VAPID_PRIVATE_KEY'),
+                  'subject' => $need('VAPID_SUBJECT'),
+              ],
+              'dev_origin' => '',
+              'commit' => $need('COMMIT'),
+          ];
+          // The log file sits next to config/ on the server: check/logs/api.log (not public).
+          $code = rtrim(var_export($config, true));
+          $code = substr($code, 0, -1) . "  'log_file' => dirname(__DIR__) . '/logs/api.log',\n)";
+          echo "<?php\n\nreturn " . $code . ";\n";
+          PHP
+          php -l deploy-out/config/config.php > /dev/null
+
+      # Pass 1: everything except index.html. Incremental sync, never a clean slate.
+      - name: Upload API and app files (FTPS)
+        uses: SamKirkland/FTP-Deploy-Action@110f9186c050f71550953127052e77650219c287 # v4.4.0
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          port: 21
+          security: strict
+          local-dir: ./deploy-out/
+          server-dir: ./
+          state-name: .ftp-deploy-sync-state.json
+
+      # Pass 2: index.html only, which switches visitors to the new build.
+      - name: Upload index.html (FTPS)
+        uses: SamKirkland/FTP-Deploy-Action@110f9186c050f71550953127052e77650219c287 # v4.4.0
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          port: 21
+          security: strict
+          local-dir: ./deploy-index/
+          server-dir: ./
+          state-name: .ftp-deploy-sync-state-index.json
+
+      - name: Apply database migrations
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+        run: |
+          curl --fail-with-body --silent --show-error --max-time 60 \
+            --request POST --header "X-Deploy-Key: ${DEPLOY_KEY}" \
+            "${SITE_URL}/api/migrate"
+          echo
+
+      - name: Check the live site
+        run: |
+          set -o pipefail
+          api/deploy/check.sh "${SITE_URL}" "${GITHUB_SHA}" | tee check.log
+          {
+            echo "### Deployed ${GITHUB_SHA:0:7} to ${SITE_URL}"
+            echo
+            echo '```'
+            cat check.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

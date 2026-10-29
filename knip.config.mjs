@@ -11,7 +11,8 @@ export default {
     'oxlint.config.mjs',
     'oxfmt.config.mjs',
   ],
-  ignore: ['api/**'],
+  // public/sw.js is loaded by the browser, not imported.
+  ignore: ['api/**', 'public/**'],
   rules: {
     files: 'error',
     dependencies: 'error',

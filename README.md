@@ -5,7 +5,8 @@ check-ups (Vorsorge) for each person: it shows which check-up is due, when to bo
 the appointment already happened, so nothing gets forgotten. Reminders go out as push notifications,
 and the data is encrypted end to end with a family passphrase.
 
-The product decisions are in [PLAN.md](PLAN.md). The technical contract (data model, schedule
+The product decisions are in [PLAN.md](PLAN.md). Hosting, secrets and the deploy workflow are in
+[docs/deploy.md](docs/deploy.md). The technical contract (data model, schedule
 rules, sync, API) is in [docs/](docs/), starting with [docs/architecture.md](docs/architecture.md).
 
 ## Scripts
@@ -21,6 +22,7 @@ rules, sync, API) is in [docs/](docs/), starting with [docs/architecture.md](doc
 | `bun run format`       | oxfmt, writes files                                       |
 | `bun run format-check` | oxfmt, checks only (CI)                                   |
 | `bun run test-run`     | Vitest, single run                                        |
+| `bun run test-php`     | PHPUnit suite of `api/` in Docker (not part of `check`)   |
 | `bun run knip`         | Unused files, exports and dependencies, strict            |
 | `bun run knip-warn`    | Same as `knip`, warnings only                             |
 | `bun run check`        | Everything above for local development                    |

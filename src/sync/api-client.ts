@@ -31,6 +31,13 @@ const docSchema = z.object({ version: versionSchema, envelope: envelopeSchema })
 const putDocSchema = z.object({ version: versionSchema })
 const remindersSchema = z.object({ count: z.number().int().nonnegative() })
 const vapidKeySchema = z.object({ key: z.string().min(1) })
+const testPushSchema = z.object({
+  sent: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  removed: z.number().int().nonnegative(),
+})
+
+export type TestPushResult = z.infer<typeof testPushSchema>
 
 type CallOptions = {
   body?: unknown
@@ -132,9 +139,12 @@ export function createApiClient({
       assertOk(response, 'DELETE /api/push/subscriptions')
     },
 
-    async testPush(): Promise<void> {
+    /** Sends a test notification to every subscribed device. */
+    async testPush(): Promise<TestPushResult> {
+      const label = 'POST /api/push/test'
       const response = await call('POST', '/api/push/test')
-      assertOk(response, 'POST /api/push/test')
+      assertOk(response, label)
+      return readJson(response, label, testPushSchema)
     },
   }
 }

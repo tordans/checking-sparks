@@ -206,6 +206,13 @@ replaces the unsent ones, so booking a date stops the booking reminders.
   `notificationclick` → focus an existing window and navigate, or `openWindow(path)`.
 - Subscribe only after a user gesture (button in settings); on iOS only in the installed app —
   the UI explains "Zum Home-Bildschirm hinzufügen" when `Notification` is missing.
+- `sw.js`: `index.html` network-first with cache fallback (every navigation gets the SPA shell),
+  hashed `/assets/` cache-first, `/api/` never cached; a new worker takes over at once
+  (`SKIP_WAITING`). Registered in `src/main.tsx` in production builds only (`VITE_ENABLE_SW=true`
+  enables it in dev). A tap on a notification focuses an open window and sends it
+  `{ type: 'navigate', path }` (the app routes itself, so the in-memory passphrase survives), or
+  opens a new window at `path`. Browser side of push: `src/push/subscribe.ts`; hosting and
+  deployment: [deploy.md](deploy.md).
 
 ## Routes
 

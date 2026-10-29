@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Checking Sparks</title>
+  <!-- Full-bleed square; all artwork sits inside the central 80% circle (maskable safe zone). -->
+  <rect width="512" height="512" fill="#0369a1" />
+  <path d="M150 290 L214 354 L318 228" fill="none" stroke="#ffffff" stroke-width="48" stroke-linecap="round" stroke-linejoin="round" />
+  <!-- spark: four-pointed star, the one accent color -->
+  <path d="M358 90 Q358 134 402 134 Q358 134 358 178 Q358 134 314 134 Q358 134 358 90 Z" fill="#fde047" stroke="#fde047" stroke-width="14" stroke-linejoin="round" />
+</svg>

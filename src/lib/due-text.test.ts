@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Due } from '@/domain/schedule'
 import { occurrence } from '@/domain/test-helpers'
-import { dueText, formatDay, windowText } from './due-text'
+import { dueText, earlyBookingNote, formatDay, windowText } from './due-text'
 
 const base: Due = {
   windowStart: '2026-12-01',
@@ -29,5 +29,13 @@ describe('dueText', () => {
     expect(formatDay('2026-03-31', '2026-01-01')).toBe('31.03.')
     expect(formatDay('2027-03-31', '2026-01-01')).toBe('31.03.2027')
     expect(windowText(base, '2026-11-01')).toBe('01.12.–28.02.2027')
+  })
+})
+
+describe('earlyBookingNote', () => {
+  it('never ends a date and a sentence with two periods', () => {
+    const note = earlyBookingNote('2026-09-17', '2026-06-01')
+    expect(note).toContain('am 17.09. –')
+    expect(note).not.toContain('..')
   })
 })

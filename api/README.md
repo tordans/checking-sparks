@@ -163,7 +163,7 @@ docker run --rm --network cs-test -v "$PWD/api":/app -w /app \
 docker rm -f cs-mariadb && docker network rm cs-test
 ```
 
-Suggested root scripts (not added): `"test:api": "docker run --rm -v \"$PWD/api\":/app -w /app checking-sparks-api-test vendor/bin/phpunit"`.
+From the repository root, `bun run test-php` does all of this (build the image, `composer install`, PHPUnit).
 In CI use `shivammathur/setup-php@v2` (PHP 8.4, extensions `pdo_sqlite, mbstring, curl, openssl`), then `composer install` and `vendor/bin/phpunit` in `api/`.
 
 ## Notes

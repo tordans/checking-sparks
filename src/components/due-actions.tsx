@@ -3,7 +3,7 @@ import { book, markDone, skip } from '@/domain/actions'
 import { compareDates, isValidDateString, today as todayOf } from '@/domain/dates'
 import type { Checkup } from '@/domain/model'
 import type { Due } from '@/domain/schedule'
-import { formatDay } from '@/lib/due-text'
+import { earlyBookingNote } from '@/lib/due-text'
 import { dispatch } from '@/sync/store'
 import { Button } from './catalyst/button'
 import {
@@ -132,12 +132,7 @@ function BookForm({ checkup, due, onDone }: FormProps) {
             autoFocus
           />
           {error && <ErrorMessage>{error}</ErrorMessage>}
-          {early && (
-            <Description>
-              Achtung: Das ist vor dem {formatDay(due.windowStart, today)}. Frag nach, ob die Kasse
-              den Termin schon zahlt.
-            </Description>
-          )}
+          {early && <Description>{earlyBookingNote(due.windowStart, today)}</Description>}
         </Field>
       </DialogBody>
       <DialogActions>

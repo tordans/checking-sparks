@@ -220,8 +220,8 @@ describe('push endpoints', () => {
   })
 
   it('triggers a test push', async () => {
-    const { api, calls } = clientWith(() => new Response(null, { status: 200 }))
-    await api.testPush()
+    const { api, calls } = clientWith(() => json({ sent: 2, failed: 0, removed: 1 }))
+    expect(await api.testPush()).toEqual({ sent: 2, failed: 0, removed: 1 })
 
     expect(calls[0]?.method).toBe('POST')
     expect(calls[0]?.url).toBe('/api/push/test')

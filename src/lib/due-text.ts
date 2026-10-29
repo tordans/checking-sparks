@@ -36,3 +36,11 @@ export function dueText(due: Due, today: string): string {
 export function windowText(due: Pick<Due, 'windowStart' | 'windowEnd'>, today: string): string {
   return `${formatDay(due.windowStart, today)}–${formatDay(due.windowEnd, today)}`
 }
+
+/**
+ * Hint when the chosen appointment is before the window. The date ends in a period (`17.09.`), so
+ * it must not end the sentence: that would print two periods.
+ */
+export function earlyBookingNote(windowStart: string, today: string): string {
+  return `Achtung: Der Zeitraum beginnt erst am ${formatDay(windowStart, today)} – frag nach, ob die Kasse den Termin schon zahlt.`
+}
