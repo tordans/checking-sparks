@@ -9,7 +9,7 @@
 
 html {
   overflow-x: clip;
-  color-scheme: light;
+  color-scheme: light dark;
 }
 
 @layer base {
@@ -24,7 +24,7 @@ html {
 
 body {
   font-family: var(--font-sans);
-  @apply bg-zinc-100 text-zinc-950 antialiased scheme-light;
+  @apply bg-zinc-100 text-zinc-950 antialiased dark:bg-zinc-950 dark:text-white;
 }
 
 @media print {

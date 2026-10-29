@@ -1,16 +1,6 @@
 import { z } from 'zod'
 import { type Envelope, envelopeSchema } from '../crypto/envelope'
-
-/** A reminder from `domain/reminders.ts`, sent to `PUT /api/reminders` (see docs/architecture.md). */
-export const reminderSchema = z.object({
-  id: z.string().min(1),
-  at: z.iso.datetime({ offset: true }),
-  title: z.string(),
-  body: z.string(),
-  path: z.string(),
-})
-
-export type Reminder = z.infer<typeof reminderSchema>
+import type { Reminder } from '../domain/reminders'
 
 export class ApiError extends Error {
   readonly status: number

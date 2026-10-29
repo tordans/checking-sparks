@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Envelope } from '../crypto/envelope'
-import { ApiError, createApiClient, type FetchLike, type Reminder } from './api-client'
+import type { Reminder } from '../domain/reminders'
+import { ApiError, createApiClient, type FetchLike } from './api-client'
 
 const FAMILY_KEY = 'test-family-key'
 

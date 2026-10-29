@@ -18,6 +18,8 @@ export default defineConfig({
   },
   server: {
     port: 5180,
+    // Local PHP API (see api/README.md, "Local development").
+    proxy: { '/api': 'http://localhost:8787' },
     fs: {
       allow: [
         searchForWorkspaceRoot(import.meta.dirname),
