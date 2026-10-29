@@ -9,12 +9,12 @@ import type { Checkup, Person, Schedule } from './model'
  */
 
 export type TemplateStatus = 'Kasse' | 'Kasse (abhängig)' | 'STIKO' | 'IGeL' | 'Selbst'
-export type TemplateSex = 'alle' | 'm' | 'w'
+type TemplateSex = 'alle' | 'm' | 'w'
 
 /** Offset from the birth date: days for the first weeks of life, months otherwise. */
-export type AgeOffset = { days: number } | { months: number }
+type AgeOffset = { days: number } | { months: number }
 
-export type TemplateSchedule =
+type TemplateSchedule =
   | { kind: 'interval'; months: number }
   | { kind: 'seasonal'; startMonth: number; endMonth: number; everyYears: number }
   /** Fixed window relative to the birth date; both ends inclusive. */

@@ -20,8 +20,8 @@ JSON in and out. Every response has `Cache-Control: no-store`. Errors are `{ "er
 | `GET /api/push/vapid-public-key` | family | `200 { key }` (`503` if not configured)                                                                                                                                                                                                                                                                     |
 | `POST /api/push/subscriptions`   | family | body `{ endpoint, keys: { p256dh, auth }, label? }`; upsert by endpoint; `201 { ok: true }`                                                                                                                                                                                                                 |
 | `DELETE /api/push/subscriptions` | family | body `{ endpoint }`; `204` (also if unknown)                                                                                                                                                                                                                                                                |
-| `POST /api/push/test`            | family | sends `{ id: "test", title: "Checking Sparks", body: "Test-Benachrichtigung", path: "/" }` to all subscriptions; `200 { sent, failed, removed }`                                                                                                                                                            |
-| `GET`/`POST /api/push/run`       | cron   | sends due reminders, see below; `200 { sent, failed, removed, skipped }`                                                                                                                                                                                                                                    |
+| `POST /api/push/test`            | family | sends `{ id: "test", title: "Checking Sparks", body: "Test-Benachrichtigung", path: "/" }` to all subscriptions; `200 { sent, failed, removed }`; `503 push_not_configured` if VAPID is not configured                                                                                                      |
+| `GET`/`POST /api/push/run`       | cron   | sends due reminders, see below; `200 { sent, failed, removed, skipped }`; `503 push_not_configured` if VAPID is not configured                                                                                                                                                                              |
 | `POST /api/migrate`              | deploy | applies pending `migrations/*.sql`; `200 { applied: [names] }`                                                                                                                                                                                                                                              |
 
 Other rules:
@@ -29,6 +29,7 @@ Other rules:
 - **Family auth:** `Authorization: Bearer <familyKey>`; the server compares `sha256(key)` with
   `family_key_sha256` using `hash_equals`. **Cron auth:** `?key=<cronKey>` or header `X-Cron-Key`.
   **Deploy auth:** header `X-Deploy-Key`. Missing/wrong: `401`. A key that is not configured (empty hash) never matches.
+- **Malformed JSON:** an empty or unparseable body is `400 { "error": "invalid_json" }`.
 - Request body over **2 MB** (`Content-Length` or actual size): `413`. Unknown path: `404`; known path, wrong method: `405` with `Allow`.
 - **CORS:** none (same origin). Only when `dev_origin` is set, requests with exactly that `Origin`
   get CORS headers and `OPTIONS` preflights are answered (`204`).

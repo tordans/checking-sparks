@@ -119,9 +119,10 @@ describe('encryptJson / decryptJson', () => {
 })
 
 describe('base64 helpers', () => {
-  it('roundtrips 1 MB of bytes', () => {
+  it('roundtrips 256 KB of bytes', () => {
     // Deterministic pattern: getRandomValues is limited to 64 KB per call.
-    const bytes = new Uint8Array(1_000_000).map((_, index) => index % 251)
+    // 256 KB spans several BASE64_CHUNK_SIZE chunks (0x8000 bytes each).
+    const bytes = new Uint8Array(256 * 1024).map((_, index) => index % 251)
     expect(base64ToBytes(bytesToBase64(bytes))).toEqual(bytes)
   })
 

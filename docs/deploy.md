@@ -108,8 +108,7 @@ rotated (all devices would have to subscribe again).
 ## 4. What the workflow does
 
 1. `bun install --frozen-lockfile`, `bun run check-ci` (types, lint, format, unit tests).
-2. PHP 8.4 (`shivammathur/setup-php`): `composer install` with dev dependencies, `php -l` on all
-   files, PHPUnit; then `composer install --no-dev --optimize-autoloader` for the upload.
+2. PHP 8.4 (`shivammathur/setup-php`): `composer install` with dev dependencies, `php -l` on every `*.php` file under `src`, `bin`, `public` and `tests` (the same `find` step in `ci.yml` and `deploy.yml`), then PHPUnit; then `composer install --no-dev --optimize-autoloader` for the upload.
 3. `bun run build` (Vite, `dist/`).
 4. Assemble `deploy-out/` exactly like the layout above (`dist/` + `api/deploy/htaccess` as
    `.htaccess` + `api/public/index.php` as `public/api/index.php`; `api/{src,migrations,vendor}`;
@@ -182,6 +181,3 @@ The family key is the only thing a device needs to talk to the server; the passp
   `api/deploy/check.sh http://localhost:8080 <commit>`. Remove the HTTPS redirect from the copy of
   `.htaccess` for plain `http://localhost`, and remove Debian's `Alias /icons/`. Service workers and
   push work on `http://localhost`.
-- The Chromium builds driven by automation use the *pre-production* FCM endpoint
-  (`fcm.googleapis.com/preprod/...`); the server's `POST /api/push/test` reached it
-  (`sent: 1`) and the service worker showed the notification.

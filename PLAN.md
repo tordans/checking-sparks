@@ -121,10 +121,15 @@ Verworfen: Google Sheet (Google-Bindung, kein Push), nur lokal (kein Sync zwisch
 ## 8. Phasen
 
 1. **Grundgerüst**: Repo-Setup, Datenmodell, Zyklus-Logik mit Tests, Personen, Vorsorge-Arten,
-   „Jetzt zu tun“, lokal gespeichert, JSON-Export/-Import.
+   „Jetzt zu tun“, lokal gespeichert, JSON-Export/-Import. ✅ gebaut
 2. **Sync**: PHP-Endpunkt, Verschlüsselung, Zusammenführen, Deploy auf den Webspace.
-3. **Erinnerungen**: PWA, Web Push + Cron, Deep Links.
-4. **Vorlagen-Katalog** für Erwachsene und Kinder.
+   ✅ gebaut; Deploy-Workflow fertig, aber noch nie gegen all-inkl gelaufen
+3. **Erinnerungen**: PWA, Web Push + Cron, Deep Links. ✅ gebaut, lokal in Chrome getestet;
+   iPhone ungetestet
+4. **Vorlagen-Katalog** für Erwachsene und Kinder. ✅ gebaut (`src/domain/templates.ts`)
+
+Technische Details: [docs/architecture.md](docs/architecture.md),
+Einrichtung des Webspace: [docs/deploy.md](docs/deploy.md).
 
 ## 9. Entscheidungen und offene Fragen
 

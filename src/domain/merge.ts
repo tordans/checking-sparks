@@ -1,7 +1,7 @@
 import type { FamilyDoc, Tombstone } from './model'
 
 /** Tombstones older than this are dropped by `pruneTombstones`. */
-export const TOMBSTONE_MAX_AGE_DAYS = 180
+const TOMBSTONE_MAX_AGE_DAYS = 180
 
 /** Orders ISO timestamps by instant; equal instants fall back to the string for a total order. */
 function compareTimestamps(a: string, b: string): number {

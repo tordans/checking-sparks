@@ -191,7 +191,7 @@ describe('push endpoints', () => {
     await api.subscribe({
       endpoint: 'https://push.example.test/abc',
       keys: { p256dh: 'p256', auth: 'auth' },
-      label: 'iPhone Tobias',
+      label: 'iPhone Lena',
     })
 
     expect(calls[0]?.method).toBe('POST')
@@ -199,7 +199,7 @@ describe('push endpoints', () => {
     expect(calls[0]?.body).toEqual({
       endpoint: 'https://push.example.test/abc',
       keys: { p256dh: 'p256', auth: 'auth' },
-      label: 'iPhone Tobias',
+      label: 'iPhone Lena',
     })
   })
 

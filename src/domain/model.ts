@@ -7,9 +7,9 @@ const DateString = z.string().refine(isValidDateString, 'Expected a date as YYYY
 const Timestamp = z.iso.datetime({ offset: true })
 const Month = z.number().int().min(1).max(12)
 
-export const SexSchema = z.enum(['m', 'w', 'd'])
+const SexSchema = z.enum(['m', 'w', 'd'])
 
-export const PersonSchema = z.object({
+const PersonSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   birthDate: DateString.optional(),
@@ -18,7 +18,7 @@ export const PersonSchema = z.object({
   updatedAt: Timestamp,
 })
 
-export const ScheduleSchema = z.discriminatedUnion('kind', [
+const ScheduleSchema = z.discriminatedUnion('kind', [
   // Earliest again N months after the last done occurrence.
   z.object({ kind: z.literal('interval'), months: z.number().int().min(1) }),
   // Recurring season, may wrap the year end (e.g. Nov–Feb).
@@ -32,7 +32,7 @@ export const ScheduleSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('once'), windowStart: DateString, windowEnd: DateString }),
 ])
 
-export const CheckupSchema = z.object({
+const CheckupSchema = z.object({
   id: z.string().min(1),
   personId: z.string().min(1),
   title: z.string().min(1),
@@ -51,9 +51,9 @@ export const CheckupSchema = z.object({
   updatedAt: Timestamp,
 })
 
-export const OccurrenceStatusSchema = z.enum(['booked', 'done', 'skipped'])
+const OccurrenceStatusSchema = z.enum(['booked', 'done', 'skipped'])
 
-export const OccurrenceSchema = z.object({
+const OccurrenceSchema = z.object({
   id: z.string().min(1),
   checkupId: z.string().min(1),
   /** Identifies which due window this occurrence belongs to. */
@@ -65,14 +65,14 @@ export const OccurrenceSchema = z.object({
   updatedAt: Timestamp,
 })
 
-export const TombstoneSchema = z.object({ id: z.string().min(1), deletedAt: Timestamp })
+const TombstoneSchema = z.object({ id: z.string().min(1), deletedAt: Timestamp })
 
-export const SettingsSchema = z.object({
+const SettingsSchema = z.object({
   reminderHour: z.number().int().min(0).max(23).default(9),
   updatedAt: Timestamp,
 })
 
-export const FamilyDocSchema = z.object({
+const FamilyDocSchema = z.object({
   schemaVersion: z.literal(1),
   persons: z.array(PersonSchema),
   checkups: z.array(CheckupSchema),
@@ -85,14 +85,12 @@ export type Sex = z.infer<typeof SexSchema>
 export type Person = z.infer<typeof PersonSchema>
 export type Schedule = z.infer<typeof ScheduleSchema>
 export type Checkup = z.infer<typeof CheckupSchema>
-export type OccurrenceStatus = z.infer<typeof OccurrenceStatusSchema>
 export type Occurrence = z.infer<typeof OccurrenceSchema>
 export type Tombstone = z.infer<typeof TombstoneSchema>
-export type Settings = z.infer<typeof SettingsSchema>
 export type FamilyDoc = z.infer<typeof FamilyDocSchema>
 
 /** Settings of a fresh doc carry the epoch, so any real change wins the merge. */
-export const EPOCH = '1970-01-01T00:00:00.000Z'
+const EPOCH = '1970-01-01T00:00:00.000Z'
 
 export function emptyDoc(): FamilyDoc {
   return {

@@ -23,21 +23,21 @@ Browser (PWA, React SPA)                         all-inkl webspace (PHP 8.4)
 ```
 src/
   domain/        model.ts (Zod schemas + types), schedule.ts, merge.ts, reminders.ts,
-                 templates.ts, ids.ts, dates.ts — no React, no DOM, fully unit tested
+                 templates.ts, dates.ts — no React, no DOM, fully unit tested
   crypto/        envelope.ts (encrypt/decrypt with passphrase) + tests
   sync/          store.ts (in-memory store + localStorage cache), api-client.ts, sync.ts
-  push/          subscribe.ts (service worker registration, push subscription)
+  push/          service-worker.ts (registration, notification taps), subscribe.ts (push subscription)
   routes/        TanStack Router file routes (code-based route tree in router.tsx is fine too)
   components/    UI building blocks
 public/
   manifest.webmanifest, sw.js, pwa-icons/
 api/
   public/index.php          entry (copied to dist/api/index.php on deploy)
-  src/                      Router.php, Db.php, handlers, WebPush sending
+  src/                      App.php (routing, auth, error mapping), Db.php, Handler/, Push/ (WebPush sending)
   migrations/               001_init.sql, …
   tests/                    PHPUnit tests against SQLite
   composer.json             minishlink/web-push, phpunit (dev)
-.github/workflows/          ci.yml (bun check + php tests), deploy.yml (FTPS)
+.github/workflows/          ci.yml (bun run check-ci, dependency review, PHP tests), deploy.yml (same checks, then FTPS upload)
 ```
 
 ## Data model (`schemaVersion: 1`)
@@ -140,22 +140,22 @@ Envelope {
 ## Server API (`api/`)
 
 PHP 8.4, no framework, PDO (MariaDB in production, SQLite in tests). JSON in and out.
-All endpoints except `health` and `push/run` require `Authorization: Bearer <familyKey>`;
+`health` needs no auth, `push/run` takes the cron key (`?key=` or `X-Cron-Key`), and `migrate` takes the deploy key in `X-Deploy-Key`, never the family key. All other endpoints require `Authorization: Bearer <familyKey>`;
 the server only stores `sha256(familyKey)` (from config). Responses never echo request bodies;
-error logs never contain bodies.
+error logs never contain bodies. Malformed or empty JSON bodies answer `400 { error: "invalid_json" }`.
 
 | Method + path                    | Body / headers                                                            | Result                                                                                                                                     |
 | -------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `GET /api/health`                | –                                                                         | `{ ok: true, commit }`                                                                                                                     |
-| `GET /api/doc`                   | –                                                                         | `200 { version, envelope }` + `ETag: "<version>"`, or `404`                                                                                |
-| `PUT /api/doc`                   | `{ envelope }`, `If-Match: "<version>"` (or `If-None-Match: *` to create) | `200 { version }`; `409 { version, envelope }` on mismatch; `428` without precondition                                                     |
-| `PUT /api/reminders`             | `{ reminders: Reminder[] }` (replaces all future, unsent ones)            | `200 { count }`                                                                                                                            |
-| `GET /api/push/vapid-public-key` | –                                                                         | `{ key }`                                                                                                                                  |
+| `GET /api/doc` | family | `200 { version, envelope }` + `ETag: "<version>"`; `304` with matching `If-None-Match`; `404` if no doc yet |
+| `PUT /api/doc` | family | body `{ envelope }`. `If-Match: "<version>"` updates, `If-None-Match: *` creates. `200 { version }` + `ETag`; `409 { version, envelope }` (+ `ETag`) on mismatch or when creating over an existing doc; `404` for `If-Match` without a doc; `428` without precondition; `422 invalid_envelope` for an empty or invalid envelope |
+| `PUT /api/reminders` | family | body `{ reminders: Reminder[] }`. In one transaction: deletes all unsent reminders, inserts the given ones, skips ids that already exist as sent/skipped. `200 { count }` (= inserted); `422 invalid_body` for the wrong shape, `422 invalid_reminder` (with `index`, `field`) for an invalid entry, `422 too_many_reminders` above 2000 |
+| `GET /api/push/vapid-public-key` | family | `200 { key }`; `503 push_not_configured` without VAPID keys |
 | `POST /api/push/subscriptions`   | `{ endpoint, keys: { p256dh, auth }, label }`                             | `201` (upsert by endpoint)                                                                                                                 |
 | `DELETE /api/push/subscriptions` | `{ endpoint }`                                                            | `204`                                                                                                                                      |
-| `POST /api/push/test`            | –                                                                         | sends a test push to all subscriptions                                                                                                     |
-| `GET`/`POST /api/push/run`       | `?key=<cronKey>` or `X-Cron-Key`                                          | sends due, unsent reminders to all subscriptions; marks them sent; deletes subscriptions that answer 404/410 → `{ sent, failed, removed }` |
-| `POST /api/migrate`              | `X-Deploy-Key`                                                            | applies pending migrations                                                                                                                 |
+| `POST /api/push/test` | family | sends `{ id: "test", title: "Checking Sparks", body: "Test-Benachrichtigung", path: "/" }` to all subscriptions; `200 { sent, failed, removed }`; `503 push_not_configured` |
+| `GET`/`POST /api/push/run` | cron | `?key=<cronKey>` or `X-Cron-Key`; sends due, unsent reminders to all subscriptions and marks them sent; deletes subscriptions that answer 404/410; reminders more than 3 days late are marked `skipped` and not sent; `200 { sent, failed, removed, skipped }`; `503 push_not_configured` |
+| `POST /api/migrate` | deploy | `X-Deploy-Key` (not the family key); applies pending `migrations/*.sql`; `200 { applied: [names] }` |
 
 `version` is an integer incremented on every write. The envelope is stored as an opaque string
 (max 2 MB).
@@ -202,14 +202,14 @@ replaces the unsent ones, so booking a date stops the booking reminders.
 ## PWA and push
 
 - `public/manifest.webmanifest` (`display: standalone`, German name, icons), `public/sw.js`
-  written by hand: app-shell cache, `push` → `showNotification(title, { body, tag: id, data: { path } })`
+  written by hand: app-shell cache, `push` → `showNotification(title, { body, icon, badge, tag: id, data: { path } })`
   with the payload `{ id, title, body, path }` (`id` = reminder id, or `"test"`; the tag replaces an
   older notification of the same reminder), `notificationclick` → focus an existing window and navigate, or `openWindow(path)`.
 - Subscribe only after a user gesture (button in settings); on iOS only in the installed app —
   the UI explains "Zum Home-Bildschirm hinzufügen" when `Notification` is missing.
 - `sw.js`: `index.html` network-first with cache fallback (every navigation gets the SPA shell),
   hashed `/assets/` cache-first, `/api/` never cached; a new worker takes over at once
-  (`SKIP_WAITING`). Registered in `src/main.tsx` in production builds only (`VITE_ENABLE_SW=true`
+  (`SKIP_WAITING`). Registered by `registerServiceWorker` in `src/push/service-worker.ts` (called from `src/main.tsx`), production builds only (`VITE_ENABLE_SW=true`
   enables it in dev). A tap on a notification focuses an open window and sends it
   `{ type: 'navigate', path }` (the app routes itself, so the in-memory passphrase survives), or
   opens a new window at `path`. Browser side of push: `src/push/subscribe.ts`; hosting and
@@ -229,5 +229,5 @@ replaces the unsent ones, so booking a date stops the booking reminders.
 ## Tooling
 
 Same as `../vacation-planner`: Bun, Vite, React 19 (+ React Compiler), TanStack Router, Zod 4,
-date-fns 4, Tailwind 4, oxlint, oxfmt, Knip, Vitest, TypeScript 7. Scripts `check`, `check-ci`.
+date-fns 4, Tailwind 4, oxlint, oxfmt, Knip, Vitest, TypeScript 7. Scripts `check`, `check-ci`. CI runs `bun run check-ci` (`.github/workflows/ci.yml`; `deploy.yml` runs it before uploading).
 PHP: tests run with `docker run php:8.4-cli` locally and `shivammathur/setup-php` in CI.
