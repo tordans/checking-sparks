@@ -6,7 +6,7 @@ import { defineConfig } from 'oxlint'
 export default defineConfig({
   plugins: ['eslint', 'typescript', 'unicorn', 'oxc', 'react'],
   options: { typeAware: true },
-  ignorePatterns: ['.agents/**', '.cursor/**', '.output/**', 'dist/**'],
+  ignorePatterns: ['.agents/**', '.cursor/**', '.output/**', 'dist/**', 'api/vendor/**'],
   rules: {
     'typescript/switch-exhaustiveness-check': 'error',
     // Restriction category — keep ESLint recommended coverage (off by default in oxlint)

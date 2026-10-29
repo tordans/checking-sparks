@@ -11,6 +11,7 @@ export default {
     'oxlint.config.mjs',
     'oxfmt.config.mjs',
   ],
+  ignore: ['api/**'],
   rules: {
     files: 'error',
     dependencies: 'error',

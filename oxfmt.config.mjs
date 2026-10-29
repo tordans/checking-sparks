@@ -32,5 +32,6 @@ export default defineConfig({
     'docs/**',
     'PLAN.md',
     'private/**',
+    'api/vendor/**',
   ],
 })

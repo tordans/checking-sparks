@@ -1,0 +1,33 @@
+{
+  "name": "checking-sparks/api",
+  "description": "PHP API for Checking Sparks: encrypted family document, reminder plan, web push",
+  "type": "project",
+  "license": "proprietary",
+  "require": {
+    "php": ">=8.4",
+    "ext-json": "*",
+    "ext-mbstring": "*",
+    "ext-pdo": "*",
+    "minishlink/web-push": "^9.0 || ^10.0"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^12.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "CheckingSparks\\Api\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "CheckingSparks\\Api\\Tests\\": "tests/"
+    }
+  },
+  "config": {
+    "sort-packages": true,
+    "optimize-autoloader": true
+  },
+  "scripts": {
+    "test": "phpunit"
+  }
+}

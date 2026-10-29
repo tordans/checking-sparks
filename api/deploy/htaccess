@@ -1,0 +1,55 @@
+# Becomes dist/.htaccess (public/.htaccess on the server) at deploy time.
+# Apache 2.4 (all-inkl). mod_headers / mod_deflate are optional (wrapped in IfModule).
+Options -Indexes -MultiViews
+DirectoryIndex index.html
+AddDefaultCharset utf-8
+AddType text/javascript .js .mjs
+AddType image/svg+xml .svg
+AddType font/woff2 .woff2
+AddType application/manifest+json .webmanifest
+
+RewriteEngine On
+
+# HTTPS only
+RewriteCond %{HTTPS} !=on
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+
+# Hand the Authorization header to PHP (FastCGI strips it otherwise)
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+# Never serve dotfiles, but keep /.well-known/ open for Let's Encrypt
+RewriteRule (^|/)\.(?!well-known/) - [F,L]
+
+# API: everything under /api goes to the PHP entry; END stops further rewriting of the result
+RewriteRule ^api(/.*)?$ api/index.php [QSA,END]
+
+# Existing files and folders are served as they are (index.html, sw.js, manifest, icons, assets/)
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Missing build files stay a real 404 (an old tab must not get HTML instead of a JS file)
+RewriteRule ^assets/ - [R=404,L]
+
+# Everything else is the single-page app (SPA fallback)
+RewriteRule ^ index.html [L]
+
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "no-referrer"
+  Header always set X-Frame-Options "DENY"
+  Header always set Strict-Transport-Security "max-age=31536000"
+
+  # Hashed build output never changes
+  <If "%{REQUEST_URI} =~ m#^/assets/#">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </If>
+  # The shell, the service worker and the manifest are always revalidated, so a deploy is picked up on the next load
+  <If "%{REQUEST_URI} == '/' || %{REQUEST_URI} == '/index.html' || %{REQUEST_URI} == '/sw.js' || %{REQUEST_URI} == '/manifest.webmanifest'">
+    Header set Cache-Control "no-cache"
+  </If>
+</IfModule>
+
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/javascript application/javascript application/json application/manifest+json image/svg+xml
+</IfModule>
