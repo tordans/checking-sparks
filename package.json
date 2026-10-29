@@ -1,0 +1,69 @@
+{
+  "name": "checking-sparks",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "dev": "FORCE_COLOR=1 bun --bun vite",
+    "build": "bun --bun vite build",
+    "preview": "FORCE_COLOR=1 bun --bun vite preview",
+    "type-check": "tsc --noEmit -p tsconfig.app.json",
+    "lint": "oxlint --fix --fix-dangerously --deny-warnings -c oxlint.config.mjs .",
+    "lint-check": "oxlint --deny-warnings -c oxlint.config.mjs .",
+    "format": "oxfmt --write -c oxfmt.config.mjs .",
+    "format-check": "oxfmt --check -c oxfmt.config.mjs .",
+    "test-run": "vitest run --passWithNoTests",
+    "knip": "KNIP_STRICT=1 knip --config knip.config.mjs",
+    "knip-warn": "knip --config knip.config.mjs || true",
+    "check": "bun run --parallel type-check lint format test-run knip-warn",
+    "check-ci": "bun run --parallel type-check lint-check format-check test-run",
+    "check-pre-push": "bun run --parallel type-check lint format test-run knip"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "@headlessui/react": "^2.2.10",
+    "@heroicons/react": "^2.2.0",
+    "@tailwindcss/forms": "^0.5.11",
+    "@tanstack/react-router": "^1.170.32",
+    "date-fns": "^4.4.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "tailwind-merge": "^3.6.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "@types/web": "^0.0.354",
+    "@vitejs/plugin-react": "^6.1.1",
+    "browserslist": "^4.28.8",
+    "browserslist-to-esbuild": "^2.1.1",
+    "bun-types": "^1.4.0",
+    "eslint-plugin-compat": "^7.0.2",
+    "knip": "^6.33.0",
+    "oxc-transform-react": "^0.147.0",
+    "oxfmt": "^0.65.0",
+    "oxlint": "^1.80.0",
+    "oxlint-tsgolint": "^7.0.2001",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11"
+  },
+  "optionalDependencies": {
+    "@typescript/typescript-darwin-arm64": "7.0.2",
+    "@typescript/typescript-linux-x64": "7.0.2"
+  },
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead",
+    "not op_mini all",
+    "not kaios > 0"
+  ],
+  "trustedDependencies": [
+    "eslint-plugin-compat"
+  ]
+}

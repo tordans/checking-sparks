@@ -1,0 +1,34 @@
+@import '@fontsource-variable/inter';
+@import 'tailwindcss';
+@plugin '@tailwindcss/forms';
+
+@theme {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-sans--font-feature-settings: 'cv11';
+}
+
+html {
+  overflow-x: clip;
+  color-scheme: light;
+}
+
+@layer base {
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  a[href],
+  select:not(:disabled),
+  label {
+    cursor: pointer;
+  }
+}
+
+body {
+  font-family: var(--font-sans);
+  @apply bg-zinc-100 text-zinc-950 antialiased scheme-light;
+}
+
+@media print {
+  body {
+    @apply bg-white;
+  }
+}

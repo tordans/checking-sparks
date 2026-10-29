@@ -1,0 +1,42 @@
+{
+  // Soft-aligned to total-typescript bundler/dom (no extends): https://github.com/total-typescript/tsconfig
+  // Intentionally NOT adopted:
+  //   module: "preserve" — total-typescript bundler default; Vite SPA uses ESNext
+  //   noUnusedLocals / noUnusedParameters — delegated to oxlint; avoid duplicate signal with tsc
+  // SPA (not TanStack Start): verbatimModuleSyntax true is OK — no client/server split to leak.
+  // Never install or extend @total-typescript/tsconfig — keep settings inlined with these comments.
+  "include": ["src", "vite.config.ts", "vitest.config.ts", "tests"],
+  "exclude": ["node_modules", "dist"],
+  "compilerOptions": {
+    "target": "ES2025",
+    "lib": ["ES2025", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "types": ["vite/client", "bun-types", "web"],
+
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+
+    "strict": true,
+    "noImplicitOverride": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noUncheckedSideEffectImports": true,
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "incremental": true,
+    "tsBuildInfoFile": ".tsbuildinfo-app",
+    "noErrorTruncation": true,
+
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  }
+}

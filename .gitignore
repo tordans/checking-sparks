@@ -2,3 +2,5 @@ private/
 node_modules/
 dist/
 .DS_Store
+.tsbuildinfo-app
+*.local
