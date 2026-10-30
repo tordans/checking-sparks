@@ -11,18 +11,18 @@ document, the reminder plan (title/body/path/time, needed to send pushes), and p
 
 JSON in and out. Every response has `Cache-Control: no-store`. Errors are `{ "error": "<code>" }`.
 
-| Method + path                    | Auth   | Result                                                                                                                                                                                                                                                                                                      |
-| -------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/health`                | none   | `200 { ok: true, commit }` (works without a database)                                                                                                                                                                                                                                                       |
-| `GET /api/doc`                   | family | `200 { version, envelope }` + `ETag: "<version>"`; `304` with matching `If-None-Match`; `404` if no doc yet                                                                                                                                                                                                 |
-| `PUT /api/doc`                   | family | body `{ envelope }`. `If-Match: "<version>"` updates, `If-None-Match: *` creates. `200 { version }` + `ETag`; `409 { version, envelope }` (+ `ETag`) on mismatch or when creating over an existing doc; `404` for `If-Match` without a doc; `428` without precondition; `422` for an empty/invalid envelope |
-| `PUT /api/reminders`             | family | body `{ reminders: Reminder[] }`. In one transaction: deletes all unsent reminders, inserts the given ones, skips ids that already exist as sent/skipped. `200 { count }` (= inserted); `422` on invalid shape (`{ error: "invalid_reminder", index, field }`) or more than 2000                            |
-| `GET /api/push/vapid-public-key` | family | `200 { key }` (`503` if not configured)                                                                                                                                                                                                                                                                     |
-| `POST /api/push/subscriptions`   | family | body `{ endpoint, keys: { p256dh, auth }, label? }`; upsert by endpoint; `201 { ok: true }`                                                                                                                                                                                                                 |
-| `DELETE /api/push/subscriptions` | family | body `{ endpoint }`; `204` (also if unknown)                                                                                                                                                                                                                                                                |
-| `POST /api/push/test`            | family | sends `{ id: "test", title: "Checking Sparks", body: "Test-Benachrichtigung", path: "/" }` to all subscriptions; `200 { sent, failed, removed }`; `503 push_not_configured` if VAPID is not configured                                                                                                      |
-| `GET`/`POST /api/push/run`       | cron   | sends due reminders, see below; `200 { sent, failed, removed, skipped }`; `503 push_not_configured` if VAPID is not configured                                                                                                                                                                              |
-| `POST /api/migrate`              | deploy | applies pending `migrations/*.sql`; `200 { applied: [names] }`                                                                                                                                                                                                                                              |
+| Method + path                    | Auth   | Result                                                                                                                                                                                                                                                                                                            |
+| -------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/health`                | none   | `200 { ok: true, commit }` (works without a database)                                                                                                                                                                                                                                                             |
+| `GET /api/doc`                   | family | `200 { version, envelope }` + `ETag: "<version>"`; `304` with matching `If-None-Match`; `404` if no doc yet                                                                                                                                                                                                       |
+| `PUT /api/doc`                   | family | body `{ envelope }`. `If-Match: "<version>"` updates, `If-None-Match: *` creates. `200 { version }` + `ETag`; `409 { version, envelope }` (+ `ETag`) on mismatch or when creating over an existing doc; `404` for `If-Match` without a doc; `428` without precondition; `422` for an empty or non-object envelope |
+| `PUT /api/reminders`             | family | body `{ reminders: Reminder[] }`. In one transaction: deletes all unsent reminders, inserts the given ones, skips ids that already exist as sent/skipped. `200 { count }` (= inserted); `422` on invalid shape (`{ error: "invalid_reminder", index, field }`) or more than 2000                                  |
+| `GET /api/push/vapid-public-key` | family | `200 { key }` (`503` if not configured)                                                                                                                                                                                                                                                                           |
+| `POST /api/push/subscriptions`   | family | body `{ endpoint, keys: { p256dh, auth }, label? }`; upsert by endpoint; `201 { ok: true }`; `422 invalid_endpoint` unless the endpoint is an `https` URL (no credentials) of a known push service, see below                                                                                                     |
+| `DELETE /api/push/subscriptions` | family | body `{ endpoint }`; `204` (also if unknown)                                                                                                                                                                                                                                                                      |
+| `POST /api/push/test`            | family | sends `{ id: "test", title: "Checking Sparks", body: "Test-Benachrichtigung", path: "/" }` to all subscriptions; `200 { sent, failed, removed }`; `503 push_not_configured` if VAPID is not configured                                                                                                            |
+| `GET`/`POST /api/push/run`       | cron   | sends due reminders, see below; `200 { sent, failed, removed, skipped }`; `503 push_not_configured` if VAPID is not configured                                                                                                                                                                                    |
+| `POST /api/migrate`              | deploy | applies pending `migrations/*.sql`; `200 { applied: [names] }`                                                                                                                                                                                                                                                    |
 
 Other rules:
 
@@ -35,8 +35,16 @@ Other rules:
   get CORS headers and `OPTIONS` preflights are answered (`204`).
 - **Logging:** only short error lines (exception class/message, or SQLSTATE for database errors).
   Request bodies, envelopes, keys, push endpoints and query strings (the cron key!) are never logged.
-- The envelope may be a JSON string or a JSON object; it is stored as JSON text and returned in the
-  same shape. It is never interpreted.
+- The envelope must be a non-empty JSON object (a string is `422 invalid_envelope`); it is stored as
+  JSON text and returned unchanged. It is never interpreted.
+- **If-Match** takes the current version (`"3"`, `W/"3"` or `3`). Any other value, including `*` and
+  garbage, counts as a stale precondition: `409` with the current document (not `428`).
+- **Push endpoints:** the server POSTs to the stored endpoints, so `POST`/`DELETE
+/api/push/subscriptions` only accept `https` URLs without credentials whose host (case-insensitive)
+  is `fcm.googleapis.com`, `android.googleapis.com`, `updates.push.services.mozilla.com`,
+  `push.apple.com` or any subdomain of it (e.g. `web.push.apple.com`), or `notify.windows.com` or any
+  subdomain of it. Everything else is `422 invalid_endpoint`. A new push service needs a line in
+  `SubscriptionHandler::PUSH_HOSTS` / `PUSH_DOMAINS`.
 
 ### Reminder validation
 
@@ -119,8 +127,10 @@ Apache 2.4. HTTPS only; passes the `Authorization` header to PHP (FastCGI would 
 `/api/*` to `api/index.php`; existing files served as is; missing `/assets/*` is a real 404;
 everything else falls back to `index.html` (SPA); `/`, `index.html`, `sw.js` and
 `manifest.webmanifest` are `no-cache`, `/assets/*` is `immutable` for one year; dotfiles are denied
-(except `/.well-known/`); no directory listing; security headers. `mod_headers` and `mod_deflate`
-are optional. The first deploy check should request `/`, an asset, `/assets/missing.js` (404),
+(except `/.well-known/`); no directory listing; security headers, including a strict
+`Content-Security-Policy` (everything `'self'`, no inline script or style, no framing; keep it in sync
+with `preview.headers` in `vite.config.ts`). `mod_headers` and `mod_deflate` are optional for the
+site to work, but `deploy/check.sh` fails without the CSP header. The first deploy check should request `/`, an asset, `/assets/missing.js` (404),
 `/some/path` (200 HTML), `/api/health` and `/api/doc` without key (401).
 
 ## Cron job (KAS)

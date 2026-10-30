@@ -13,7 +13,9 @@ import { parseDoc } from '@/domain/model'
 import type { FamilyDoc } from '@/domain/model'
 import { buildReminders } from '@/domain/reminders'
 import { ApiError, createApiClient } from './api-client'
-import type { ApiClient } from './api-client'
+import type { ApiClient, DocResponse } from './api-client'
+import { keyStore as defaultKeyStore } from './key-store'
+import type { KeyStore } from './key-store'
 import { store as defaultStore } from './store'
 import type { DocStore } from './store'
 
@@ -53,17 +55,28 @@ function describeError(error: unknown): { offline: true } | { offline: false; me
 export function createSyncEngine({
   api,
   store = defaultStore,
+  keyStore = defaultKeyStore,
   iterations = DEFAULT_ITERATIONS,
   now = () => new Date(),
 }: {
   api: SyncApi
   store?: DocStore
+  /** Where "Passphrase merken" keeps the derived key (tests use an in-memory fake). */
+  keyStore?: KeyStore
   /** PBKDF2 iterations for a new family (tests use a small number). */
   iterations?: number
   now?: () => Date
 }) {
   let docKey: DocKey | null = null
+  // The reminder plan the server has (JSON), so an unchanged plan is not uploaded again.
+  let uploadedPlan: string | null = null
   let queue: Promise<unknown> = Promise.resolve()
+
+  /** A new session (or none) uploads the reminder plan once, whatever the server has. */
+  function setDocKey(next: DocKey | null): void {
+    docKey = next
+    uploadedPlan = null
+  }
 
   /** Runs one sync task at a time, in order. */
   function exclusive<T>(task: () => Promise<T>): Promise<T> {
@@ -75,10 +88,9 @@ export function createSyncEngine({
   async function keyFor(envelope: Envelope, passphrase?: string): Promise<CryptoKey> {
     const { salt, iterations: rounds } = envelope.kdf
     if (docKey && docKey.salt === salt && docKey.iterations === rounds) return docKey.key
-    const secret = passphrase ?? store.getServer()?.passphrase
-    if (secret === undefined) throw new WrongPassphraseError()
-    const key = await deriveKey(secret, salt, rounds)
-    docKey = { key, salt, iterations: rounds }
+    if (passphrase === undefined) throw new WrongPassphraseError()
+    const key = await deriveKey(passphrase, salt, rounds)
+    setDocKey({ key, salt, iterations: rounds })
     return key
   }
 
@@ -98,7 +110,10 @@ export function createSyncEngine({
 
   async function uploadReminders(doc: FamilyDoc): Promise<void> {
     const reminders = buildReminders(doc, today(now()), doc.settings.reminderHour)
+    const plan = JSON.stringify(reminders)
+    if (plan === uploadedPlan) return
     await api.putReminders(reminders)
+    uploadedPlan = plan
   }
 
   /** PUT with If-Match (or create with `version: null`); on 409 merge and retry, max 3 times. */
@@ -125,9 +140,8 @@ export function createSyncEngine({
     throw new SyncFailure('Gleichzeitige Änderungen konnten nicht gespeichert werden.')
   }
 
-  /** GET → decrypt → merge → PUT if the result differs from the server copy or is dirty. */
-  async function pullMergePush(passphrase?: string): Promise<void> {
-    const remote = await api.getDoc()
+  /** Decrypt → merge → PUT if the result differs from the server copy or is dirty. */
+  async function syncWith(remote: DocResponse | null, passphrase?: string): Promise<void> {
     if (!remote) {
       await push(null, passphrase)
       return
@@ -142,9 +156,19 @@ export function createSyncEngine({
     }
   }
 
+  /** GET, then `syncWith`. */
+  async function pullMergePush(): Promise<void> {
+    await syncWith(await api.getDoc())
+  }
+
+  async function forgetKey(): Promise<void> {
+    await keyStore.delete()
+    store.setKeyRemembered(false)
+  }
+
   function settle(error: unknown): void {
     if (error instanceof WrongPassphraseError) {
-      docKey = null
+      setDocKey(null)
       store.setConnection({ status: 'locked', docExists: true, error: WRONG_PASSPHRASE })
       return
     }
@@ -193,21 +217,14 @@ export function createSyncEngine({
         const remote = await api.getDoc()
         if (remote) {
           const { salt, iterations: rounds } = remote.envelope.kdf
-          docKey = { key: await deriveKey(passphrase, salt, rounds), salt, iterations: rounds }
-          const remoteDoc = await decryptDoc(remote.envelope)
-          store.setServerVersion(remote.version)
-          const merged = mergeIntoLocal(remoteDoc)
-          if (store.getMeta().dirty || !sameContent(merged, remoteDoc)) {
-            await push(remote.version, passphrase)
-          } else {
-            store.markUploaded(remote.version, merged)
-          }
+          setDocKey({ key: await deriveKey(passphrase, salt, rounds), salt, iterations: rounds })
         } else {
           const salt = createSalt()
-          docKey = { key: await deriveKey(passphrase, salt, iterations), salt, iterations }
-          await push(null, passphrase)
+          setDocKey({ key: await deriveKey(passphrase, salt, iterations), salt, iterations })
         }
-        store.rememberPassphrase(remember ? passphrase : null)
+        await syncWith(remote, passphrase)
+        if (remember && docKey) store.setKeyRemembered(await keyStore.put(docKey))
+        else await forgetKey()
         store.setConnection({ status: 'synced', at: now().toISOString() })
         return { ok: true }
       } catch (error) {
@@ -226,11 +243,34 @@ export function createSyncEngine({
     probe,
     unlock,
 
-    /** Starts with the remembered passphrase, if any. */
-    resume(): Promise<void> {
-      const passphrase = store.getServer()?.passphrase
-      if (passphrase === undefined) return probe()
-      return unlock(passphrase, true).then(() => undefined)
+    /** Starts with the remembered key, if any; without one (or a stale one) the user is asked. */
+    async resume(): Promise<void> {
+      // No "Gesperrt" flash while IndexedDB answers.
+      if (store.getServer()?.keyRemembered) store.setConnection({ status: 'syncing' })
+      const remembered = await keyStore.get()
+      if (!remembered) return probe()
+      return exclusive(async () => {
+        store.setConnection({ status: 'syncing' })
+        try {
+          const remote = await api.getDoc()
+          const kdf = remote?.envelope.kdf
+          if (
+            !remote ||
+            kdf?.salt !== remembered.salt ||
+            kdf.iterations !== remembered.iterations
+          ) {
+            // The family document was replaced or has no document: the old key is useless.
+            await forgetKey()
+            store.setConnection({ status: 'locked', docExists: remote !== null })
+            return
+          }
+          setDocKey(remembered)
+          await syncWith(remote)
+          store.setConnection({ status: 'synced', at: now().toISOString() })
+        } catch (error) {
+          settle(error)
+        }
+      })
     },
 
     /** Pull, merge, push. Does nothing while locked. */
@@ -254,7 +294,7 @@ export function createSyncEngine({
 
     /** Forgets the key in memory (e.g. after disconnecting). */
     lock() {
-      docKey = null
+      setDocKey(null)
     },
   }
 }
@@ -276,13 +316,10 @@ function watch(current: SyncEngine): () => void {
   const sync = () => {
     if (isVisible()) void current.syncNow()
   }
-  const onVisibility = () => {
-    if (isVisible()) void current.syncNow()
-  }
   const interval = setInterval(sync, PULL_INTERVAL_MS)
   window.addEventListener('focus', sync)
   window.addEventListener('online', sync)
-  document.addEventListener('visibilitychange', onVisibility)
+  document.addEventListener('visibilitychange', sync)
   const unsubscribe = defaultStore.onLocalChange(() => {
     clearTimeout(debounce)
     debounce = setTimeout(() => void current.pushNow(), LOCAL_CHANGE_DEBOUNCE_MS)
@@ -292,7 +329,7 @@ function watch(current: SyncEngine): () => void {
     clearTimeout(debounce)
     window.removeEventListener('focus', sync)
     window.removeEventListener('online', sync)
-    document.removeEventListener('visibilitychange', onVisibility)
+    document.removeEventListener('visibilitychange', sync)
     unsubscribe()
   }
 }
@@ -316,6 +353,7 @@ export function startSync(): void {
 export function pairDevice(familyKey: string): void {
   const sameKey = defaultStore.getServer()?.familyKey === familyKey
   defaultStore.setFamilyKey(familyKey)
+  if (!sameKey) void defaultKeyStore.delete()
   if (sameKey && engine) return
   void connect(familyKey).probe()
 }
@@ -332,11 +370,18 @@ export function syncNow(): Promise<void> {
   return engine.isUnlocked() ? engine.syncNow() : engine.resume()
 }
 
+/** "Passphrase merken" off: deletes the remembered key; this session stays unlocked. */
+export function forgetRememberedKey(): void {
+  void defaultKeyStore.delete()
+  defaultStore.setKeyRemembered(false)
+}
+
 /** Disconnects this device from the server; the local data stays. */
 export function disconnect(): void {
   stopWatching?.()
   stopWatching = null
   engine?.lock()
   engine = null
+  void defaultKeyStore.delete()
   defaultStore.forgetServer()
 }

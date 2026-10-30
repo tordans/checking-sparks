@@ -83,8 +83,16 @@ final class DocTest extends ApiTestCase
         $this->call('PUT', '/api/doc', ['envelope' => $this->envelope()], ['If-None-Match' => '*']);
         self::assertSame(200, $this->call('PUT', '/api/doc', ['envelope' => $this->envelope('a')], ['If-Match' => 'W/"1"'])->status);
         self::assertSame(200, $this->call('PUT', '/api/doc', ['envelope' => $this->envelope('b')], ['If-Match' => '2'])->status);
-        self::assertSame(200, $this->call('PUT', '/api/doc', ['envelope' => $this->envelope('c')], ['If-Match' => '*'])->status);
-        self::assertSame(409, $this->call('PUT', '/api/doc', ['envelope' => $this->envelope('d')], ['If-Match' => 'garbage'])->status);
+    }
+
+    public function testIfMatchStarAndGarbageAreConflicts(): void
+    {
+        $this->call('PUT', '/api/doc', ['envelope' => $this->envelope('one')], ['If-None-Match' => '*']);
+        foreach (['*', 'garbage', '"0"'] as $value) {
+            $r = $this->call('PUT', '/api/doc', ['envelope' => $this->envelope('x')], ['If-Match' => $value]);
+            self::assertSame(409, $r->status, $value);
+            self::assertSame(['version' => 1, 'envelope' => $this->envelope('one')], $r->data());
+        }
     }
 
     public function testIfMatchWithoutDocIs404(): void
@@ -108,12 +116,6 @@ final class DocTest extends ApiTestCase
         self::assertSame(200, $this->call('GET', '/api/doc', headers: ['If-None-Match' => '"1"'])->status);
     }
 
-    public function testStringEnvelopeRoundTripsAsString(): void
-    {
-        $this->call('PUT', '/api/doc', ['envelope' => 'opaque-"string"/with/ümlauts'], ['If-None-Match' => '*']);
-        self::assertSame('opaque-"string"/with/ümlauts', $this->data($this->call('GET', '/api/doc'))['envelope']);
-    }
-
     public function testLargeEnvelopeNearTheLimitIsStored(): void
     {
         $big = str_repeat('A', 1_900_000);
@@ -130,7 +132,7 @@ final class DocTest extends ApiTestCase
 
     public function testInvalidEnvelopeIs422(): void
     {
-        foreach ([[], ['envelope' => null], ['envelope' => ''], ['envelope' => 5], ['envelope' => []], ['envelope' => (object) []], ['other' => 'x']] as $body) {
+        foreach ([[], ['envelope' => null], ['envelope' => ''], ['envelope' => 5], ['envelope' => 'string'], ['envelope' => [1, 2]], ['envelope' => []], ['envelope' => (object) []], ['other' => 'x']] as $body) {
             $r = $this->call('PUT', '/api/doc', rawBody: json_encode($body), headers: ['If-None-Match' => '*']);
             self::assertSame(422, $r->status, json_encode($body));
             self::assertSame(['error' => 'invalid_envelope'], $r->data());

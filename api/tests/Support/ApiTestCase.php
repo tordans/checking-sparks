@@ -110,7 +110,7 @@ abstract class ApiTestCase extends TestCase
         return ['v' => 1, 'kdf' => ['name' => 'PBKDF2'], 'cipher' => ['name' => 'AES-GCM', 'iv' => 'aXY='], 'data' => $data];
     }
 
-    protected function subscribe(string $endpoint = 'https://push.example.com/send/abc', string $label = 'Phone'): void
+    protected function subscribe(string $endpoint = 'https://fcm.googleapis.com/fcm/send/abc', string $label = 'Phone'): void
     {
         $response = $this->call('POST', '/api/push/subscriptions', [
             'endpoint' => $endpoint,

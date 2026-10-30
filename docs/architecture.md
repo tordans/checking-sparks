@@ -132,9 +132,15 @@ Envelope {
 ```
 
 - The salt is created once per family and reused, so every device derives the same key.
-- The derived `CryptoKey` is non-extractable and cached in memory; the passphrase is stored on
-  the device only if the user ticks "auf diesem Gerät merken" (localStorage), otherwise asked
-  per session.
+- The derived `CryptoKey` is non-extractable and cached in memory. The passphrase itself is never
+  stored. If the user ticks "auf diesem Gerät merken", the key is also kept in IndexedDB
+  (`sync/key-store.ts`: database `checking-sparks`, store `keys`, with its salt and iterations; a
+  `keyRemembered` flag in the server config tells the UI). On the next start the app unlocks with
+  that key; if the server document uses another salt or iteration count, the key is dropped and
+  the passphrase is asked again. Unticking, unlocking without "merken" and disconnecting delete it.
+  Older versions stored the passphrase in localStorage: it is ignored and removed on load.
+- `kdf.iterations` of a received envelope must be within 1,000 to 10,000,000, so a bad document
+  cannot freeze or weaken a device.
 - Wrong passphrase → AES-GCM decryption fails → German error "Passphrase stimmt nicht".
 
 ## Server API (`api/`)
@@ -148,10 +154,10 @@ error logs never contain bodies. Malformed or empty JSON bodies answer `400 { er
 | -------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `GET /api/health`                | –                                                                         | `{ ok: true, commit }`                                                                                                                     |
 | `GET /api/doc` | family | `200 { version, envelope }` + `ETag: "<version>"`; `304` with matching `If-None-Match`; `404` if no doc yet |
-| `PUT /api/doc` | family | body `{ envelope }`. `If-Match: "<version>"` updates, `If-None-Match: *` creates. `200 { version }` + `ETag`; `409 { version, envelope }` (+ `ETag`) on mismatch or when creating over an existing doc; `404` for `If-Match` without a doc; `428` without precondition; `422 invalid_envelope` for an empty or invalid envelope |
+| `PUT /api/doc` | family | body `{ envelope }`. `If-Match: "<version>"` updates, `If-None-Match: *` creates. `200 { version }` + `ETag`; `409 { version, envelope }` (+ `ETag`) on mismatch or when creating over an existing doc; `404` for `If-Match` without a doc; `428` without precondition; any other `If-Match` (also `*`) is a stale precondition and answers `409`; `422 invalid_envelope` unless the envelope is a non-empty object |
 | `PUT /api/reminders` | family | body `{ reminders: Reminder[] }`. In one transaction: deletes all unsent reminders, inserts the given ones, skips ids that already exist as sent/skipped. `200 { count }` (= inserted); `422 invalid_body` for the wrong shape, `422 invalid_reminder` (with `index`, `field`) for an invalid entry, `422 too_many_reminders` above 2000 |
 | `GET /api/push/vapid-public-key` | family | `200 { key }`; `503 push_not_configured` without VAPID keys |
-| `POST /api/push/subscriptions`   | `{ endpoint, keys: { p256dh, auth }, label }`                             | `201` (upsert by endpoint)                                                                                                                 |
+| `POST /api/push/subscriptions`   | `{ endpoint, keys: { p256dh, auth }, label }`                             | `201` (upsert by endpoint); `422 invalid_endpoint` unless `https` and a known push service (FCM, Mozilla, Apple, Windows) |                                                                                                               |
 | `DELETE /api/push/subscriptions` | `{ endpoint }`                                                            | `204`                                                                                                                                      |
 | `POST /api/push/test` | family | sends `{ id: "test", title: "Checking Sparks", body: "Test-Benachrichtigung", path: "/" }` to all subscriptions; `200 { sent, failed, removed }`; `503 push_not_configured` |
 | `GET`/`POST /api/push/run` | cron | `?key=<cronKey>` or `X-Cron-Key`; sends due, unsent reminders to all subscriptions and marks them sent; deletes subscriptions that answer 404/410; reminders more than 3 days late are marked `skipped` and not sent; `200 { sent, failed, removed, skipped }`; `503 push_not_configured` |
@@ -188,7 +194,8 @@ replaces the unsent ones, so booking a date stops the booking reminders.
   into local → if the result differs from the server copy, `PUT` with `If-Match`.
 - On local change: mark dirty, debounce 1 s, `PUT`. On `409`: decrypt the returned envelope,
   merge, retry (max 3).
-- After a successful `PUT`: `PUT /api/reminders` with the new plan.
+- After a successful `PUT`: `PUT /api/reminders` with the new plan, unless it is identical to the
+  plan uploaded in this session (remembered in memory, reset on unlock and lock).
 - Without server configuration the app works fully local (useful for development and for
   people who only want export/import).
 
@@ -211,9 +218,14 @@ replaces the unsent ones, so booking a date stops the booking reminders.
   hashed `/assets/` cache-first, `/api/` never cached; a new worker takes over at once
   (`SKIP_WAITING`). Registered by `registerServiceWorker` in `src/push/service-worker.ts` (called from `src/main.tsx`), production builds only (`VITE_ENABLE_SW=true`
   enables it in dev). A tap on a notification focuses an open window and sends it
-  `{ type: 'navigate', path }` (the app routes itself, so the in-memory passphrase survives), or
+  `{ type: 'navigate', path }` (`sw.js` and the app both resolve `path` against their own origin and
+  accept only same-origin targets, so `//evil` or `/\\evil` open the start page or are ignored) (the app routes itself, so the in-memory key survives), or
   opens a new window at `path`. Browser side of push: `src/push/subscribe.ts`; hosting and
   deployment: [deploy.md](deploy.md).
+
+- Content-Security-Policy (`api/deploy/htaccess`, mirrored in `preview.headers` of `vite.config.ts`):
+  everything `'self'`, no inline script or style, no framing, no plugins; `deploy/check.sh` asserts
+  it. New external hosts or inline code need a conscious change of the policy.
 
 ## Routes
 

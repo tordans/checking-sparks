@@ -122,10 +122,10 @@ rotated (all devices would have to subscribe again).
 7. `POST /api/migrate` with `X-Deploy-Key`.
 8. `api/deploy/check.sh https://check.ingsparks.de <commit>`: `/` is HTML and `no-cache`, an asset is
    200 and `immutable`, a missing `/assets/...` is a real 404, `/einstellungen` and a deep link
-   fall back to the app, `sw.js` is JavaScript, manifest and icons exist, `/api/health` shows the
+   fall back to the app, `sw.js` is JavaScript, `/` sends a `Content-Security-Policy`, manifest and icons exist, `/api/health` shows the
    commit just deployed, `/api/doc`, `/api/push/run` and the VAPID endpoint answer 401 without key,
    dotfiles are not served. A failed check fails the run; the output is also in the run summary.
-   Missing `mod_headers` only produces warnings. You can run the script by hand against the live site.
+   Missing `mod_headers` fails the check (no CSP) and produces warnings for the cache headers. You can run the script by hand against the live site.
 
 Deploys on pushes to `main` never run in parallel (`concurrency`) and are never cancelled half way.
 An interrupted upload leaves a half-updated state that the health check makes visible; re-running

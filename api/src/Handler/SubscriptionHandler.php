@@ -15,6 +15,17 @@ final class SubscriptionHandler
     public const MAX_ENDPOINT = 500;
     public const MAX_LABEL = 100;
 
+    /** Push services the server is willing to POST to (exact host names). */
+    private const PUSH_HOSTS = [
+        'fcm.googleapis.com',
+        'android.googleapis.com',
+        'updates.push.services.mozilla.com',
+        'web.push.apple.com',
+    ];
+
+    /** Push services with many host names: the domain itself and every subdomain. */
+    private const PUSH_DOMAINS = ['push.apple.com', 'notify.windows.com'];
+
     /** @param Closure(): \DateTimeImmutable $clock */
     public function __construct(private readonly Db $db, private readonly Closure $clock)
     {
@@ -67,19 +78,17 @@ final class SubscriptionHandler
         return Response::empty(204);
     }
 
-    /** Only https URLs with a real host name (no IP literals, no localhost): the server will POST to it. */
+    /** Only https URLs of a known push service: the server will POST to it, so it must not reach other hosts. */
     private static function endpoint(mixed $value): string
     {
         if (!is_string($value) || $value === '' || strlen($value) > self::MAX_ENDPOINT) {
             throw new HttpException(422, 'invalid_endpoint');
         }
         $parts = parse_url($value);
-        $host = is_array($parts) ? ($parts['host'] ?? '') : '';
+        $host = is_array($parts) ? strtolower($parts['host'] ?? '') : '';
         $ok = is_array($parts)
             && ($parts['scheme'] ?? '') === 'https'
-            && $host !== ''
-            && str_contains($host, '.')
-            && !filter_var(trim($host, '[]'), FILTER_VALIDATE_IP)
+            && self::isPushHost($host)
             && !isset($parts['user'])
             && !isset($parts['pass'])
             && preg_match('/^[\x21-\x7E]+$/', $value) === 1;
@@ -88,6 +97,20 @@ final class SubscriptionHandler
         }
 
         return $value;
+    }
+
+    private static function isPushHost(string $host): bool
+    {
+        if (in_array($host, self::PUSH_HOSTS, true)) {
+            return true;
+        }
+        foreach (self::PUSH_DOMAINS as $domain) {
+            if ($host === $domain || str_ends_with($host, '.' . $domain)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** base64url (padding tolerated), as delivered by PushSubscription.toJSON(). */

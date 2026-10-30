@@ -12,7 +12,7 @@ use CheckingSparks\Api\Response;
 
 /**
  * The single encrypted family document, versioned for optimistic concurrency.
- * The envelope is opaque to the server: a JSON string or object, stored as JSON text.
+ * The envelope is a JSON object that is opaque to the server, stored as JSON text.
  */
 final class DocHandler
 {
@@ -48,10 +48,8 @@ final class DocHandler
                 throw new HttpException(404, 'not_found');
             }
             $expected = self::parseVersion($ifMatch);
-            if ($expected !== null && $expected !== $row['version']) {
-                return self::conflict($row);
-            }
-            if ($expected === null && trim($ifMatch) !== '*') {
+            // Anything but the current version (including "*" and garbage) is a conflict.
+            if ($expected !== $row['version']) {
                 return self::conflict($row);
             }
             $changed = $this->db->run(
@@ -104,8 +102,7 @@ final class DocHandler
             throw new HttpException(422, 'invalid_envelope');
         }
         $envelope = $body->envelope;
-        $valid = (is_string($envelope) && $envelope !== '') || ($envelope instanceof \stdClass && (array) $envelope !== []);
-        if (!$valid) {
+        if (!$envelope instanceof \stdClass || (array) $envelope === []) {
             throw new HttpException(422, 'invalid_envelope');
         }
 
@@ -117,7 +114,7 @@ final class DocHandler
         return '"' . $version . '"';
     }
 
-    /** Accepts "3", W/"3", 3. Returns null for anything else (including "*"). */
+    /** Accepts "3", W/"3", 3. Returns null for anything else. */
     private static function parseVersion(string $header): ?int
     {
         if (preg_match('/^\s*(?:W\/)?"?(\d{1,18})"?\s*$/', $header, $m) === 1) {

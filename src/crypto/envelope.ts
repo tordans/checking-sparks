@@ -3,6 +3,10 @@ import { z } from 'zod'
 /** PBKDF2 iteration count used for new families (see docs/architecture.md, "Encryption"). */
 export const DEFAULT_ITERATIONS = 600_000
 
+// The count comes from the server's envelope: bound it so a bad doc cannot freeze or weaken a device.
+const MIN_ITERATIONS = 1_000
+const MAX_ITERATIONS = 10_000_000
+
 const IV_BYTES = 12
 const SALT_BYTES = 16
 // Keeps `String.fromCharCode(...chunk)` well below the engine's argument-count limit.
@@ -16,7 +20,7 @@ export const envelopeSchema = z.object({
   kdf: z.object({
     name: z.literal('PBKDF2'),
     hash: z.literal('SHA-256'),
-    iterations: z.number().int().positive(),
+    iterations: z.number().int().min(MIN_ITERATIONS).max(MAX_ITERATIONS),
     salt: z.base64(),
   }),
   cipher: z.object({

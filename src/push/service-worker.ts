@@ -17,14 +17,20 @@ export function parseNavigateMessage(data: unknown): string | null {
   if (typeof data !== 'object' || data === null) return null
   const { type, path } = data as { type?: unknown; path?: unknown }
   if (type !== 'navigate' || typeof path !== 'string') return null
-  return path.startsWith('/') && !path.startsWith('//') ? path : null
+  try {
+    // "//evil" and "/\\evil" resolve to another origin; only same-origin targets pass.
+    const url = new URL(path, window.location.origin)
+    return url.origin === window.location.origin ? url.pathname + url.search + url.hash : null
+  } catch {
+    return null
+  }
 }
 
 export function registerServiceWorker(navigate: (path: string) => void): void {
   if (!serviceWorkerEnabled() || !('serviceWorker' in navigator)) return
 
   // Tapping a notification focuses this window and asks it to open the page. A full reload would
-  // lose the passphrase that is only held in memory.
+  // lose the unlocked key that is only held in memory.
   navigator.serviceWorker.addEventListener('message', (event) => {
     const path = parseNavigateMessage(event.data)
     if (path) navigate(path)

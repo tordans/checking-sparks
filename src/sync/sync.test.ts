@@ -6,6 +6,7 @@ import { emptyDoc } from '@/domain/model'
 import type { FamilyDoc } from '@/domain/model'
 import type { Reminder } from '@/domain/reminders'
 import type { DocResponse, PutDocResult } from './api-client'
+import type { KeyStore, RememberedKey } from './key-store'
 import { createDocStore, memoryStorage } from './store'
 import { createSyncEngine, WRONG_PASSPHRASE } from './sync'
 
@@ -18,6 +19,7 @@ function fakeApi() {
     doc: null as DocResponse | null,
     reminders: [] as Reminder[],
     puts: 0,
+    reminderPuts: 0,
     /** Simulates another device writing between our GET and PUT. */
     beforePut: undefined as (() => Promise<void>) | undefined,
   }
@@ -39,6 +41,7 @@ function fakeApi() {
     },
     async putReminders(reminders: Reminder[]) {
       server.reminders = reminders
+      server.reminderPuts += 1
       return { count: reminders.length }
     },
   }
@@ -55,12 +58,33 @@ async function decryptWith(envelope: Envelope, passphrase: string): Promise<Fami
   return (await decryptJson(envelope, key)) as FamilyDoc
 }
 
+/** In-memory stand-in for IndexedDB. */
+function fakeKeyStore() {
+  const keys = { remembered: null as RememberedKey | null, failPut: false }
+  const keyStore: KeyStore = {
+    async get() {
+      return keys.remembered
+    },
+    async put(remembered) {
+      if (keys.failPut) return false
+      keys.remembered = remembered
+      return true
+    },
+    async delete() {
+      keys.remembered = null
+    },
+  }
+  return { keys, keyStore }
+}
+
 function setup() {
   const { server, api } = fakeApi()
+  const { keys, keyStore } = fakeKeyStore()
   const store = createDocStore(memoryStorage())
   store.setFamilyKey('family')
-  const engine = createSyncEngine({ api, store, iterations: ITERATIONS, now: () => NOW })
-  return { server, store, engine }
+  const newEngine = () =>
+    createSyncEngine({ api, store, keyStore, iterations: ITERATIONS, now: () => NOW })
+  return { server, store, keys, newEngine, engine: newEngine() }
 }
 
 const lena = (doc: FamilyDoc) =>
@@ -81,13 +105,77 @@ describe('first device', () => {
     expect(onServer.persons.map((p) => p.name)).toEqual(['Lena'])
     expect(store.getMeta()).toEqual({ serverVersion: 1, dirty: false })
     expect(store.getSnapshot().connection.status).toBe('synced')
-    expect(store.getServer()?.passphrase).toBeUndefined()
+    expect(store.getServer()?.keyRemembered).toBe(false)
+  })
+})
+
+describe('remembered key', () => {
+  it('stores the derived key with its salt and iterations only when asked', async () => {
+    const { server, store, keys, engine } = setup()
+    await engine.unlock('geheim', false)
+    expect(keys.remembered).toBeNull()
+
+    await engine.unlock('geheim', true)
+    expect(keys.remembered?.salt).toBe(server.doc!.envelope.kdf.salt)
+    expect(keys.remembered?.iterations).toBe(ITERATIONS)
+    expect(store.getServer()?.keyRemembered).toBe(true)
+    // Never the passphrase itself.
+    expect(JSON.stringify(store.getServer())).not.toContain('geheim')
   })
 
-  it('remembers the passphrase only when asked', async () => {
-    const { store, engine } = setup()
+  it('is not remembered when the key store fails', async () => {
+    const { store, keys, engine } = setup()
+    keys.failPut = true
     await engine.unlock('geheim', true)
-    expect(store.getServer()?.passphrase).toBe('geheim')
+    expect(store.getServer()?.keyRemembered).toBe(false)
+  })
+
+  it('unlocks on the next start without a passphrase', async () => {
+    const { server, store, keys, newEngine } = setup()
+    await newEngine().unlock('geheim', true)
+    store.dispatch(lena)
+
+    const restarted = newEngine()
+    await restarted.resume()
+
+    expect(restarted.isUnlocked()).toBe(true)
+    expect(store.getSnapshot().connection.status).toBe('synced')
+    expect(keys.remembered).not.toBeNull()
+    const onServer = await decryptWith(server.doc!.envelope, 'geheim')
+    expect(onServer.persons.map((p) => p.name)).toEqual(['Lena'])
+  })
+
+  it('asks for the passphrase when the server uses another salt', async () => {
+    const { server, store, keys, newEngine } = setup()
+    await newEngine().unlock('geheim', true)
+    server.doc = { version: 9, envelope: await encryptWith(lena(emptyDoc()), 'geheim') }
+
+    const restarted = newEngine()
+    await restarted.resume()
+
+    expect(restarted.isUnlocked()).toBe(false)
+    expect(store.getSnapshot().connection).toEqual({ status: 'locked', docExists: true })
+    expect(keys.remembered).toBeNull()
+    expect(store.getServer()?.keyRemembered).toBe(false)
+  })
+
+  it('only asks the server when nothing is remembered', async () => {
+    const { server, store, newEngine } = setup()
+    server.doc = { version: 2, envelope: await encryptWith(lena(emptyDoc()), 'geheim') }
+
+    const restarted = newEngine()
+    await restarted.resume()
+
+    expect(restarted.isUnlocked()).toBe(false)
+    expect(store.getSnapshot().connection).toEqual({ status: 'locked', docExists: true })
+  })
+
+  it('is deleted when unlocking again without "merken"', async () => {
+    const { store, keys, engine } = setup()
+    await engine.unlock('geheim', true)
+    await engine.unlock('geheim', false)
+    expect(keys.remembered).toBeNull()
+    expect(store.getServer()?.keyRemembered).toBe(false)
   })
 })
 
@@ -104,7 +192,7 @@ describe('other devices', () => {
       docExists: true,
       error: WRONG_PASSPHRASE,
     })
-    expect(store.getServer()?.passphrase).toBeUndefined()
+    expect(store.getServer()?.keyRemembered).toBe(false)
     expect(engine.isUnlocked()).toBe(false)
   })
 
@@ -178,6 +266,20 @@ describe('conflicts', () => {
   })
 })
 
+function zahnarzt(firstWindowStart: string) {
+  return {
+    id: 'c1',
+    personId: 'lena',
+    title: 'Zahnarzt',
+    schedule: { kind: 'interval' as const, months: 6 },
+    windowMonths: 3,
+    bookingLeadWeeks: 6,
+    firstWindowStart,
+    active: true,
+    updatedAt: '2026-10-03T00:00:00.000Z',
+  }
+}
+
 describe('reminders', () => {
   it('uploads the plan after a successful PUT, with the reminder hour of the doc', async () => {
     const { server, store, engine } = setup()
@@ -206,5 +308,38 @@ describe('reminders', () => {
     expect(server.reminders.length).toBeGreaterThan(0)
     expect(server.reminders[0]!.title).toBe('Lena: Zahnarzt buchen')
     expect(server.reminders[0]!.at).toContain('T07:00:00')
+  })
+
+  it('skips the PUT while the plan is unchanged and uploads again after a change', async () => {
+    const { server, store, engine } = setup()
+    store.dispatch((doc) => ({
+      ...lena(doc),
+      checkups: [zahnarzt('2026-12-01')],
+    }))
+    await engine.unlock('geheim', false)
+    expect(server.reminderPuts).toBe(1)
+
+    // The document changes, the plan does not.
+    store.dispatch(tom)
+    await engine.pushNow()
+    expect(server.puts).toBe(2)
+    expect(server.reminderPuts).toBe(1)
+
+    store.dispatch((doc) => ({ ...doc, checkups: [zahnarzt('2027-03-01')] }))
+    await engine.pushNow()
+    expect(server.reminderPuts).toBe(2)
+  })
+
+  it('uploads once again in a new session', async () => {
+    const { server, store, engine } = setup()
+    store.dispatch((doc) => ({ ...lena(doc), checkups: [zahnarzt('2026-12-01')] }))
+    await engine.unlock('geheim', false)
+    engine.lock()
+    await engine.unlock('geheim', false)
+    // The second unlock does not even PUT the doc, so only a later change reaches the reminders.
+    expect(server.reminderPuts).toBe(1)
+    store.dispatch(tom)
+    await engine.pushNow()
+    expect(server.reminderPuts).toBe(2)
   })
 })

@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { store, useConnection, useServerConfig } from '@/sync/store'
-import { disconnect, syncNow } from '@/sync/sync'
+import { useConnection, useServerConfig } from '@/sync/store'
+import { disconnect, forgetRememberedKey, syncNow } from '@/sync/sync'
 import { Button } from './catalyst/button'
 import { Checkbox, CheckboxField } from './catalyst/checkbox'
 import { Description, Field, Label } from './catalyst/fieldset'
@@ -77,9 +77,9 @@ export function SyncSettings() {
             </div>
           </Field>
 
-          {server.rememberedPassphrase ? (
+          {server.keyRemembered ? (
             <CheckboxField>
-              <Checkbox checked onChange={() => store.rememberPassphrase(null)} />
+              <Checkbox checked onChange={() => forgetRememberedKey()} />
               <Label>Passphrase auf diesem Gerät merken</Label>
               <Description>
                 Abhaken, um sie zu vergessen. Dann fragen wir beim nächsten Start.

@@ -36,6 +36,7 @@ expect_status() { # path expected [label]
 fetch /
 if [ "$status" = 200 ] && printf '%s' "$headers" | grep -q 'content-type: text/html'; then pass "/ is the HTML shell"; else fail "/ -> $status"; fi
 if printf '%s' "$headers" | grep -q 'cache-control:.*no-cache'; then pass "/ is no-cache"; else warn "/ has no no-cache header (mod_headers missing?)"; fi
+if printf '%s' "$headers" | grep -q "content-security-policy:.*default-src 'self'"; then pass "/ sends a Content-Security-Policy"; else fail "/ has no Content-Security-Policy header (mod_headers missing?)"; fi
 asset="$(printf '%s' "$body" | grep -o '/assets/[^"]*\.js' | head -1 || true)"
 
 # 2. hashed assets: served, immutable; missing ones are a real 404

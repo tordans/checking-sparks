@@ -105,10 +105,14 @@ async function trimCache(cache) {
 
 /** Only same-origin paths; anything else (from a bad payload) opens the start page. */
 function safePath(value) {
-  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')) {
+  if (typeof value !== 'string') return DEFAULT_PATH
+  try {
+    const url = new URL(value, self.location.origin)
+    if (url.origin !== self.location.origin) return DEFAULT_PATH
+    return url.pathname + url.search + url.hash
+  } catch {
     return DEFAULT_PATH
   }
-  return value
 }
 
 self.addEventListener('push', (event) => {

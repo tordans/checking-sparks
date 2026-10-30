@@ -9,8 +9,8 @@ use CheckingSparks\Api\Tests\Support\ApiTestCase;
 
 final class PushTest extends ApiTestCase
 {
-    private const A = 'https://push.example.com/a';
-    private const B = 'https://push.example.com/b';
+    private const A = 'https://fcm.googleapis.com/fcm/send/a';
+    private const B = 'https://updates.push.services.mozilla.com/wpush/v2/b';
 
     private function runCron(string $method = 'GET'): array
     {

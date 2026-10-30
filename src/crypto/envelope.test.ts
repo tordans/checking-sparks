@@ -110,6 +110,21 @@ describe('encryptJson / decryptJson', () => {
     expect(await decryptJson(envelope, key)).toEqual(large)
   })
 
+  it('rejects an iteration count outside 1000..10_000_000', async () => {
+    const salt = createSalt()
+    const key = await deriveKey('geheim', salt, ITERATIONS)
+    const envelope = await encryptJson(sample, key, salt, ITERATIONS)
+    const withIterations = (iterations: number) => ({
+      ...envelope,
+      kdf: { ...envelope.kdf, iterations },
+    })
+
+    expect(envelopeSchema.safeParse(withIterations(999)).success).toBe(false)
+    expect(envelopeSchema.safeParse(withIterations(10_000_001)).success).toBe(false)
+    expect(envelopeSchema.safeParse(withIterations(1000)).success).toBe(true)
+    expect(envelopeSchema.safeParse(withIterations(10_000_000)).success).toBe(true)
+  })
+
   it('rejects values that cannot be serialized to JSON', async () => {
     const salt = createSalt()
     const key = await deriveKey('geheim', salt, ITERATIONS)

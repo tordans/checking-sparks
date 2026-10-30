@@ -26,8 +26,11 @@ export type Connection =
 
 export interface ServerConfig {
   familyKey: string
-  /** Only set when the user ticked "Passphrase auf diesem Gerät merken". */
-  passphrase?: string
+  /**
+   * The user ticked "Passphrase auf diesem Gerät merken" and the derived key is in IndexedDB
+   * (key-store.ts). Only the flag lives here, so the UI can show it without waiting for IndexedDB.
+   */
+  keyRemembered: boolean
 }
 
 interface SyncMeta {
@@ -40,8 +43,7 @@ interface SyncMeta {
 export interface StoreSnapshot {
   doc: FamilyDoc
   connection: Connection
-  /** Without the passphrase: components only need to know whether it is remembered. */
-  server: { familyKey: string; rememberedPassphrase: boolean } | null
+  server: { familyKey: string; keyRemembered: boolean } | null
   dirty: boolean
 }
 
@@ -81,12 +83,14 @@ function loadMeta(storage: KeyValueStorage): SyncMeta {
 }
 
 function loadServer(storage: KeyValueStorage): ServerConfig | null {
-  const raw = readJson(storage, SERVER_KEY) as Partial<ServerConfig> | undefined
+  const raw = readJson(storage, SERVER_KEY) as
+    | (Partial<ServerConfig> & { passphrase?: unknown })
+    | undefined
   if (typeof raw?.familyKey !== 'string' || raw.familyKey === '') return null
-  return {
-    familyKey: raw.familyKey,
-    ...(typeof raw.passphrase === 'string' ? { passphrase: raw.passphrase } : {}),
-  }
+  const server = { familyKey: raw.familyKey, keyRemembered: raw.keyRemembered === true }
+  // Older versions stored the plaintext passphrase here. It is not used any more: remove it.
+  if ('passphrase' in raw) writeJson(storage, SERVER_KEY, server)
+  return server
 }
 
 export function createDocStore(storage: KeyValueStorage) {
@@ -104,9 +108,7 @@ export function createDocStore(storage: KeyValueStorage) {
     return {
       doc,
       connection,
-      server: server
-        ? { familyKey: server.familyKey, rememberedPassphrase: server.passphrase !== undefined }
-        : null,
+      server: server ? { familyKey: server.familyKey, keyRemembered: server.keyRemembered } : null,
       dirty: meta.dirty,
     }
   }
@@ -176,15 +178,14 @@ export function createDocStore(storage: KeyValueStorage) {
     /** Pairing: a new family key. A different key means a different server document. */
     setFamilyKey(familyKey: string) {
       if (server?.familyKey === familyKey) return
-      setServer({ familyKey })
+      setServer({ familyKey, keyRemembered: false })
       setMeta({ serverVersion: null, dirty: true })
       connection = { status: 'locked', docExists: null }
       emit()
     },
-    rememberPassphrase(passphrase: string | null) {
-      if (!server) return
-      const { passphrase: _old, ...rest } = server
-      setServer(passphrase === null ? rest : { ...rest, passphrase })
+    setKeyRemembered(keyRemembered: boolean) {
+      if (!server || server.keyRemembered === keyRemembered) return
+      setServer({ ...server, keyRemembered })
       emit()
     },
     /** Disconnects this device; the local data stays. */
