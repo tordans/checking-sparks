@@ -11,7 +11,7 @@ GitHub (push to main / "Run workflow")
   bun run check-ci -> PHPUnit -> bun run build -> assemble folder -> FTPS upload
   -> POST /api/migrate (X-Deploy-Key) -> api/deploy/check.sh (routing, 401s, commit from /api/health)
 
-all-inkl webspace
+all-inkl webspace (folder name as KAS creates it, e.g. check.ingsparks.de/; called check/ below)
   check/                        FTP root of the dedicated FTP user
     config/config.php           generated from secrets on every deploy (not public)
     api/{src,migrations,vendor} PHP code (not public)
@@ -29,9 +29,11 @@ repository; `config.php` is generated in the workflow and exists only on the ser
 
 Do these once, in this order.
 
-1. **Subdomain.** KAS > Domain > Subdomain > add `check` under `ingsparks.de`. Target directory:
-   `check/public` (the folder is created by the first upload; if KAS insists on an existing folder,
-   create `check/public` via FTP first). Check that the DNS record resolves.
+1. **Subdomain.** KAS > Domain > Subdomain > add `check` under `ingsparks.de`. KAS creates the
+   folder `/check.ingsparks.de/` and points the subdomain at it. Change the target ("Ziel >
+   Webspace") to its subfolder **`/check.ingsparks.de/public/`**, so `config/`, `api/` and `logs/`
+   next to it are not reachable from the web (create `public/` via FTP first if KAS insists on an
+   existing folder). The FTP user's path stays `/check.ingsparks.de/`.
 2. **TLS.** KAS > Domain > the subdomain > SSL: enable Let's Encrypt for `check.ingsparks.de`.
    Wait until `https://check.ingsparks.de/` answers (a 403/404 page is fine before the first deploy).
    The `.htaccess` redirects HTTP to HTTPS and sends HSTS, so TLS must work before the first deploy.
@@ -55,7 +57,12 @@ Do these once, in this order.
 
 ## 2. Generate keys and secrets
 
-Run from the repository root. Docker is used so that PHP is not needed locally (the image is built
+**Guided:** `scripts/setup-deploy-secrets.sh` does all of this section and section 3 in one go: it
+generates the keys, asks for the FTP and database passwords (hidden input), writes every secret to
+the GitHub environment `production` with `gh secret set`, and at the end shows the family key,
+cron key and deploy key once for your password manager. Nothing is written to disk.
+
+By hand: run from the repository root. Docker is used so that PHP is not needed locally (the image is built
 once with `bun run test-php`, or with `docker build -t checking-sparks-api-test -f api/Dockerfile.test api`).
 `composer install` must have run in `api/` once (also done by `bun run test-php`) for the VAPID script.
 
@@ -137,7 +144,7 @@ as a last resort, change it to `loose` in both upload steps.
 
 ## 5. First deploy checklist
 
-- [ ] KAS: subdomain `check.ingsparks.de` -> `check/public`, Let's Encrypt active, PHP 8.4, database
+- [ ] KAS: subdomain `check.ingsparks.de` -> `/check.ingsparks.de/public/`, Let's Encrypt active, PHP 8.4, database
       created, FTP user restricted to `check/`.
 - [ ] Keys generated; all 13 secrets set in the `production` environment.
 - [ ] Merge to `main` (or "Run workflow"). All steps green, including "Check the live site".
