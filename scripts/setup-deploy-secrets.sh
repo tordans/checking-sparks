@@ -3,7 +3,8 @@
 # Generates family/cron/deploy keys and a VAPID key pair, asks for the FTP and database values,
 # and stores everything with `gh secret set --env production`. Nothing is written to disk.
 #
-# Usage: scripts/setup-deploy-secrets.sh [owner/repo]
+# Usage: [FTP_SERVER=… FTP_USERNAME=… DB_HOST=… DB_NAME=… DB_USER=…] scripts/setup-deploy-secrets.sh [owner/repo]
+# Values given as environment variables are not asked for; passwords and the e-mail always are.
 set -euo pipefail
 
 REPO="${1:-$(gh repo view --json nameWithOwner -q .nameWithOwner)}"
@@ -29,14 +30,14 @@ put() { printf '%s' "$2" | gh secret set "$1" --env "$ENV_NAME" --repo "$REPO" >
 echo "Secrets für $REPO (Environment: $ENV_NAME)"
 echo
 echo "1/3 FTP (KAS > FTP-Nutzer)"
-FTP_SERVER=$(ask "  Servername" "")
-FTP_USERNAME=$(ask "  Benutzername" "")
+FTP_SERVER=${FTP_SERVER:-$(ask "  Servername" "")}
+FTP_USERNAME=${FTP_USERNAME:-$(ask "  Benutzername" "")}
 FTP_PASSWORD=$(ask_secret "  Passwort")
 echo
 echo "2/3 Datenbank (KAS > Datenbank)"
-DB_HOST=$(ask "  Host" "localhost")
-DB_NAME=$(ask "  Datenbank" "")
-DB_USER=$(ask "  Login" "$DB_NAME")
+DB_HOST=${DB_HOST:-$(ask "  Host" "localhost")}
+DB_NAME=${DB_NAME:-$(ask "  Datenbank" "")}
+DB_USER=${DB_USER:-$(ask "  Login" "$DB_NAME")}
 DB_PASSWORD=$(ask_secret "  Passwort")
 echo
 echo "3/3 Push"
