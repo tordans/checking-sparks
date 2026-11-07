@@ -7,7 +7,7 @@ follows. UI copy is German, code and docs are English.
 ## Overview
 
 ```
-Browser (PWA, React SPA)                         all-inkl webspace (PHP 8.4)
+Browser (PWA, React SPA)                         all-inkl webspace (PHP 8.5)
 ├── domain/   pure TS: model, schedule, merge    ├── public/            static build + api/index.php
 ├── crypto/   AES-GCM + PBKDF2 envelope          ├── api/src/           tiny router, handlers
 ├── sync/     local cache, server sync, merge    ├── config/config.php  generated on deploy (not public)
@@ -145,7 +145,7 @@ Envelope {
 
 ## Server API (`api/`)
 
-PHP 8.4, no framework, PDO (MariaDB in production, SQLite in tests). JSON in and out.
+PHP 8.5, no framework, PDO (MariaDB in production, SQLite in tests). JSON in and out.
 `health` needs no auth, `push/run` takes the cron key (`?key=` or `X-Cron-Key`), and `migrate` takes the deploy key in `X-Deploy-Key`, never the family key. All other endpoints require `Authorization: Bearer <familyKey>`;
 the server only stores `sha256(familyKey)` (from config). Responses never echo request bodies;
 error logs never contain bodies. Malformed or empty JSON bodies answer `400 { error: "invalid_json" }`.
@@ -242,4 +242,4 @@ replaces the unsent ones, so booking a date stops the booking reminders.
 
 Same as `../vacation-planner`: Bun, Vite, React 19 (+ React Compiler), TanStack Router, Zod 4,
 date-fns 4, Tailwind 4, oxlint, oxfmt, Knip, Vitest, TypeScript 7. Scripts `check`, `check-ci`. CI runs `bun run check-ci` (`.github/workflows/ci.yml`; `deploy.yml` runs it before uploading).
-PHP: tests run with `docker run php:8.4-cli` locally and `shivammathur/setup-php` in CI.
+PHP: tests run with `docker run php:8.5-cli` locally and `shivammathur/setup-php` in CI.

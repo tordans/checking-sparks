@@ -37,7 +37,7 @@ Do these once, in this order.
 2. **TLS.** KAS > Domain > the subdomain > SSL: enable Let's Encrypt for `check.ingsparks.de`.
    Wait until `https://check.ingsparks.de/` answers (a 403/404 page is fine before the first deploy).
    The `.htaccess` redirects HTTP to HTTPS and sends HSTS, so TLS must work before the first deploy.
-3. **PHP.** KAS > Tools > PHP version (or the subdomain's PHP setting): **PHP 8.4** for the
+3. **PHP.** KAS > Tools > PHP version (or the subdomain's PHP setting): **PHP 8.5** for the
    subdomain. Check the extensions: `pdo_mysql`, `mbstring`, `curl`, `openssl` are required;
    `gmp` (or `bcmath`) makes the push encryption much faster (about 100-300 ms per notification
    instead of seconds).
@@ -115,7 +115,7 @@ rotated (all devices would have to subscribe again).
 ## 4. What the workflow does
 
 1. `bun install --frozen-lockfile`, `bun run check-ci` (types, lint, format, unit tests).
-2. PHP 8.4 (`shivammathur/setup-php`): `composer install` with dev dependencies, `php -l` on every `*.php` file under `src`, `bin`, `public` and `tests` (the same `find` step in `ci.yml` and `deploy.yml`), then PHPUnit; then `composer install --no-dev --optimize-autoloader` for the upload.
+2. PHP 8.5 (`shivammathur/setup-php`): `composer install` with dev dependencies, `php -l` on every `*.php` file under `src`, `bin`, `public` and `tests` (the same `find` step in `ci.yml` and `deploy.yml`), then PHPUnit; then `composer install --no-dev --optimize-autoloader` for the upload.
 3. `bun run build` (Vite, `dist/`).
 4. Assemble `deploy-out/` exactly like the layout above (`dist/` + `api/deploy/htaccess` as
    `.htaccess` + `api/public/index.php` as `public/api/index.php`; `api/{src,migrations,vendor}`;
@@ -144,7 +144,7 @@ as a last resort, change it to `loose` in both upload steps.
 
 ## 5. First deploy checklist
 
-- [ ] KAS: subdomain `check.ingsparks.de` -> `/check.ingsparks.de/public/`, Let's Encrypt active, PHP 8.4, database
+- [ ] KAS: subdomain `check.ingsparks.de` -> `/check.ingsparks.de/public/`, Let's Encrypt active, PHP 8.5, database
       created, FTP user restricted to `check/`.
 - [ ] Keys generated; all 13 secrets set in the `production` environment.
 - [ ] Merge to `main` (or "Run workflow"). All steps green, including "Check the live site".
@@ -182,7 +182,7 @@ The family key is the only thing a device needs to talk to the server; the passp
 ## 7. Local checks
 
 - `bun run test-php` runs the PHPUnit suite in Docker (not part of `bun run check`).
-- Production-like test without all-inkl: serve the assembled folder with `php:8.4-apache`
+- Production-like test without all-inkl: serve the assembled folder with `php:8.5-apache`
   (`mod_rewrite`, `mod_headers`, `AllowOverride All`, `pdo_mysql`) next to a `mariadb:10.11`
   container; point `config/config.php` at it, `POST /api/migrate`, then
   `api/deploy/check.sh http://localhost:8080 <commit>`. Remove the HTTPS redirect from the copy of

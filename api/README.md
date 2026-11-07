@@ -1,6 +1,6 @@
 # Checking Sparks API
 
-PHP 8.4, no framework, PDO. MariaDB 10.11 in production (all-inkl Privat+), SQLite in memory in
+PHP 8.5, no framework, PDO. MariaDB 10.11 in production (all-inkl Privat+), SQLite in memory in
 the tests. The contract is in [../docs/architecture.md](../docs/architecture.md) ("Server API",
 "Reminder plan", "PWA and push"); this file covers what is specific to the PHP code.
 
@@ -176,7 +176,7 @@ docker rm -f cs-mariadb && docker network rm cs-test
 ```
 
 From the repository root, `bun run test-php` does all of this (build the image, `composer install`, PHPUnit).
-In CI use `shivammathur/setup-php@v2` (PHP 8.4, extensions `pdo_sqlite, mbstring, curl, openssl`), then `composer install` and `vendor/bin/phpunit` in `api/`.
+In CI use `shivammathur/setup-php@v2` (PHP 8.5, extensions `pdo_sqlite, mbstring, curl, openssl`), then `composer install` and `vendor/bin/phpunit` in `api/`.
 
 ## Notes
 

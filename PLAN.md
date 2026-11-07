@@ -141,7 +141,7 @@ Entschieden am 2026-10-21:
 - Datenschutz: Ende-zu-Ende-Verschlüsselung mit Familien-Passphrase; Erinnerungsplan und
   Push-Texte dürfen Person und Vorsorge im Klartext nennen.
 - Webspace: all-inkl (Privat+), wie in `vacation-planner/docs/central-storage-plan.md`:
-  PHP 8.4, MariaDB, FTPS-Deploy, kein SSH.
+  PHP 8.5, MariaDB, FTPS-Deploy, kein SSH.
 - Vorsorge-Vorlagen: [docs/vorsorge-vorlagen.md](docs/vorsorge-vorlagen.md), geprüft gegen
   G-BA, STIKO und IGeL-Monitor.
 

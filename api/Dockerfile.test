@@ -1,6 +1,6 @@
-# Test image for the API: PHP 8.4 CLI + Composer + the extensions the app needs.
+# Test image for the API: PHP 8.5 CLI + Composer + the extensions the app needs.
 # Build:  docker build -t checking-sparks-api-test -f api/Dockerfile.test api
-FROM php:8.4-cli
+FROM php:8.5-cli
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git unzip libzip-dev \
