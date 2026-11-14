@@ -12,14 +12,6 @@ use PHPUnit\Framework\TestCase;
 
 final class WebPushSenderTest extends TestCase
 {
-    public function testIsConfiguredNeedsAllVapidValues(): void
-    {
-        $logger = new Logger('/dev/null');
-        self::assertFalse((new WebPushSender(new Config([]), $logger))->isConfigured());
-        self::assertFalse((new WebPushSender(new Config(['vapid' => ['public_key' => 'a', 'private_key' => 'b']]), $logger))->isConfigured());
-        self::assertTrue((new WebPushSender(new Config(['vapid' => ['public_key' => 'a', 'private_key' => 'b', 'subject' => 'mailto:x@example.com']]), $logger))->isConfigured());
-    }
-
     public function testUnusableSubscriptionKeysFailWithoutThrowingOrNetwork(): void
     {
         $keys = VAPID::createVapidKeys();

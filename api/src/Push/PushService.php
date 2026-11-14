@@ -14,9 +14,8 @@ final class PushService
     public const URGENCY = 'normal';
     /** Reminders older than this when the cron job reaches them are skipped, not sent late. */
     public const STALE_AFTER = '-3 days';
-    /** Stop sending after this many seconds so the PHP request does not time out. */
-    public const TIME_BUDGET_SECONDS = 20.0;
-    public const MAX_REMINDERS_PER_RUN = 200;
+    /** Sending happens inside the cron request; what is left is sent by the next run. */
+    public const MAX_REMINDERS_PER_RUN = 50;
 
     /** @param Closure(): \DateTimeImmutable $clock */
     public function __construct(
@@ -35,11 +34,10 @@ final class PushService
     {
         $now = ($this->clock)();
         $nowStr = Db::format($now);
-        $started = hrtime(true);
-        $stats = ['sent' => 0, 'failed' => 0, 'removed' => 0, 'skipped' => 0];
+        $stats = ['sent' => 0, 'failed' => 0, 'removed' => 0];
 
         // Too old to be useful: mark as skipped so they do not fire late.
-        $stats['skipped'] = $this->db->run(
+        $skipped = $this->db->run(
             'UPDATE reminders SET sent_at = ?, skipped = 1 WHERE sent_at IS NULL AND due_at < ?',
             [$nowStr, Db::format($now->modify(self::STALE_AFTER))],
         );
@@ -49,14 +47,11 @@ final class PushService
             . 'ORDER BY due_at, id LIMIT ' . self::MAX_REMINDERS_PER_RUN,
             [$nowStr],
         );
-        $subscriptions = $this->loadSubscriptions();
-        if ($due === [] || $subscriptions === []) {
-            // Without a subscription nothing is claimed: the reminders stay pending until they go stale.
-            return $stats;
-        }
-
         foreach ($due as $reminder) {
-            if ($subscriptions === [] || (hrtime(true) - $started) / 1e9 > self::TIME_BUDGET_SECONDS) {
+            // Loaded per reminder, so a subscription found gone is not tried again in this run.
+            $subscriptions = $this->subscriptions();
+            if ($subscriptions === []) {
+                // Nothing is claimed: the reminders stay pending until they go stale.
                 break;
             }
             // Claim first so an overlapping cron run cannot send the same reminder twice.
@@ -68,16 +63,20 @@ final class PushService
                 continue;
             }
 
-            $payload = self::payload((string) $reminder['id'], (string) $reminder['title'], (string) $reminder['body'], (string) $reminder['path']);
-            $delivered = $this->deliver($subscriptions, $payload, $nowStr, $stats);
-
-            if ($delivered === 0) {
+            $result = $this->deliver(
+                $subscriptions,
+                self::payload((string) $reminder['id'], (string) $reminder['title'], (string) $reminder['body'], (string) $reminder['path']),
+            );
+            foreach ($result as $key => $count) {
+                $stats[$key] += $count;
+            }
+            if ($result['sent'] === 0) {
                 // Nobody got it (transient errors or all subscriptions gone): try again next run.
                 $this->db->run('UPDATE reminders SET sent_at = NULL WHERE id = ?', [$reminder['id']]);
             }
         }
 
-        return $stats;
+        return $stats + ['skipped' => $skipped];
     }
 
     /**
@@ -87,16 +86,7 @@ final class PushService
      */
     public function test(): array
     {
-        $stats = ['sent' => 0, 'failed' => 0, 'removed' => 0];
-        $subscriptions = $this->loadSubscriptions();
-        $this->deliver(
-            $subscriptions,
-            self::payload('test', 'Checking Sparks', 'Test-Benachrichtigung', '/'),
-            Db::format(($this->clock)()),
-            $stats,
-        );
-
-        return $stats;
+        return $this->deliver($this->subscriptions(), self::payload('test', 'Checking Sparks', 'Test-Benachrichtigung', '/'));
     }
 
     /**
@@ -109,36 +99,31 @@ final class PushService
     }
 
     /**
-     * Sends one payload to all remaining subscriptions; updates $subscriptions (removes gone ones)
-     * and $stats. Returns the number of successful deliveries.
+     * Sends one payload to the given subscriptions; deletes those the push service reports gone.
      *
      * @param list<array{endpoint: string, p256dh: string, auth: string}> $subscriptions
-     * @param array<string, int> $stats
+     * @return array{sent: int, failed: int, removed: int}
      */
-    private function deliver(array &$subscriptions, string $payload, string $nowStr, array &$stats): int
+    private function deliver(array $subscriptions, string $payload): array
     {
-        $delivered = 0;
-        foreach ($subscriptions as $i => $subscription) {
-            $result = $this->sender->send($subscription, $payload, self::TTL_SECONDS, self::URGENCY);
-            if ($result->ok) {
-                $stats['sent']++;
-                $delivered++;
-                $this->db->run('UPDATE subscriptions SET last_success_at = ? WHERE endpoint = ?', [$nowStr, $subscription['endpoint']]);
-            } elseif ($result->gone) {
+        $result = ['sent' => 0, 'failed' => 0, 'removed' => 0];
+        foreach ($subscriptions as $subscription) {
+            $sent = $this->sender->send($subscription, $payload, self::TTL_SECONDS, self::URGENCY);
+            if ($sent->ok) {
+                $result['sent']++;
+            } elseif ($sent->gone) {
                 $this->db->run('DELETE FROM subscriptions WHERE endpoint = ?', [$subscription['endpoint']]);
-                $stats['removed']++;
-                unset($subscriptions[$i]);
+                $result['removed']++;
             } else {
-                $stats['failed']++;
+                $result['failed']++;
             }
         }
-        $subscriptions = array_values($subscriptions);
 
-        return $delivered;
+        return $result;
     }
 
     /** @return list<array{endpoint: string, p256dh: string, auth: string}> */
-    private function loadSubscriptions(): array
+    private function subscriptions(): array
     {
         $rows = $this->db->all('SELECT endpoint, p256dh, auth FROM subscriptions ORDER BY created_at, endpoint');
 

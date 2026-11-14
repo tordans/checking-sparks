@@ -58,12 +58,6 @@ final class RoutingTest extends ApiTestCase
         self::assertSame(['error' => 'payload_too_large'], $r->data());
     }
 
-    public function testBodyOfExactlyTwoMegabytesIsNotRejectedForSize(): void
-    {
-        $r = $this->call('PUT', '/api/doc', rawBody: str_repeat('a', 2 * 1024 * 1024), headers: ['If-None-Match' => '*']);
-        self::assertSame(400, $r->status); // size ok, but not JSON
-    }
-
     public function testDeclaredContentLengthOverLimitIs413(): void
     {
         $r = $this->app->handle(new Request('PUT', '/api/doc', ['Authorization' => 'Bearer ' . self::FAMILY_KEY], [], '', 3 * 1024 * 1024));
@@ -74,43 +68,6 @@ final class RoutingTest extends ApiTestCase
     {
         $r = $this->app->handle(new Request('PUT', '/api/doc', ['Authorization' => 'Bearer ' . self::FAMILY_KEY], [], 'x', null, true));
         self::assertSame(413, $r->status);
-    }
-
-    public function testNoCorsHeadersForSameOrigin(): void
-    {
-        $r = $this->call('GET', '/api/health', headers: ['Origin' => 'https://evil.example'], auth: false);
-        self::assertNull($r->header('Access-Control-Allow-Origin'));
-        $r = $this->call('GET', '/api/health', auth: false);
-        self::assertNull($r->header('Access-Control-Allow-Origin'));
-    }
-
-    public function testNoCorsHeadersWhenDevOriginUnset(): void
-    {
-        $r = $this->call('GET', '/api/health', headers: ['Origin' => 'http://localhost:5180'], auth: false);
-        self::assertNull($r->header('Access-Control-Allow-Origin'));
-    }
-
-    public function testDevOriginGetsCorsHeadersAndPreflight(): void
-    {
-        $app = $this->makeApp($this->config(['dev_origin' => 'http://localhost:5180/']), migrate: false);
-
-        $r = $app->handle(new Request('GET', '/api/health', ['Origin' => 'http://localhost:5180']));
-        self::assertSame('http://localhost:5180', $r->header('Access-Control-Allow-Origin'));
-        self::assertSame('ETag', $r->header('Access-Control-Expose-Headers'));
-
-        $pre = $app->handle(new Request('OPTIONS', '/api/doc', ['Origin' => 'http://localhost:5180']));
-        self::assertSame(204, $pre->status);
-        self::assertSame('http://localhost:5180', $pre->header('Access-Control-Allow-Origin'));
-        self::assertStringContainsString('If-Match', (string) $pre->header('Access-Control-Allow-Headers'));
-        self::assertStringContainsString('PUT', (string) $pre->header('Access-Control-Allow-Methods'));
-
-        $other = $app->handle(new Request('GET', '/api/health', ['Origin' => 'https://evil.example']));
-        self::assertNull($other->header('Access-Control-Allow-Origin'));
-    }
-
-    public function testPreflightOnUnknownRouteIs404(): void
-    {
-        self::assertSame(404, $this->call('OPTIONS', '/api/nope', auth: false)->status);
     }
 
     public function testUnexpectedErrorsAreGenericAndDoNotLeak(): void

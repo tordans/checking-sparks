@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Guided setup of the GitHub environment secrets for the deploy workflow (docs/deploy.md, 2 + 3).
-# Generates family/cron/deploy keys and a VAPID key pair, asks for the FTP and database values,
+# Generates the family and cron keys and a VAPID key pair, asks for the FTP and database values,
 # and stores everything with `gh secret set --env production`. Nothing is written to disk.
 #
 # Usage: [FTP_SERVER=… FTP_USERNAME=… DB_HOST=… DB_NAME=… DB_USER=…] scripts/setup-deploy-secrets.sh [owner/repo]
@@ -47,7 +47,6 @@ echo
 echo "Erzeuge Schlüssel …"
 FAMILY_KEY=$(random_key)
 CRON_KEY=$(random_key)
-DEPLOY_KEY=$(random_key)
 
 # VAPID key pair via the PHP test image (no local PHP needed).
 docker image inspect checking-sparks-api-test >/dev/null 2>&1 \
@@ -71,18 +70,16 @@ put DB_USER "$DB_USER"
 put DB_PASSWORD "$DB_PASSWORD"
 put FAMILY_KEY_SHA256 "$(sha256 "$FAMILY_KEY")"
 put CRON_KEY_SHA256 "$(sha256 "$CRON_KEY")"
-put DEPLOY_KEY "$DEPLOY_KEY"
 put VAPID_PUBLIC_KEY "$VAPID_PUBLIC_KEY"
 put VAPID_PRIVATE_KEY "$VAPID_PRIVATE_KEY"
 put VAPID_SUBJECT "$VAPID_SUBJECT"
 
 cat <<EOF
 
-Fertig. Diese drei Werte jetzt in den Passwort-Manager übernehmen – sie werden nirgends gespeichert:
+Fertig. Diese beiden Werte jetzt in den Passwort-Manager übernehmen – sie werden nirgends gespeichert:
 
   Familienschlüssel:  $FAMILY_KEY
   Cron-Schlüssel:     $CRON_KEY
-  Deploy-Schlüssel:   $DEPLOY_KEY
 
 Gerät koppeln (nach dem ersten Deploy):  https://check.ingsparks.de/verbinden#key=$FAMILY_KEY
 Cronjob-URL in KAS:                      check.ingsparks.de/api/push/run?key=$CRON_KEY

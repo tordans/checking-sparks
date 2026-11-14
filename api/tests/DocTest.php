@@ -34,11 +34,9 @@ final class DocTest extends ApiTestCase
         $r = $this->call('PUT', '/api/doc', ['envelope' => $this->envelope()], ['If-None-Match' => '*']);
         self::assertSame(200, $r->status);
         self::assertSame(['version' => 1], $r->data());
-        self::assertSame('"1"', $r->header('ETag'));
 
         $get = $this->call('GET', '/api/doc');
         self::assertSame(200, $get->status);
-        self::assertSame('"1"', $get->header('ETag'));
         self::assertSame(['version' => 1, 'envelope' => $this->envelope()], $get->data());
     }
 
@@ -48,7 +46,6 @@ final class DocTest extends ApiTestCase
         $r = $this->call('PUT', '/api/doc', ['envelope' => $this->envelope('two')], ['If-None-Match' => '*']);
         self::assertSame(409, $r->status);
         self::assertSame(['version' => 1, 'envelope' => $this->envelope('one')], $r->data());
-        self::assertSame('"1"', $r->header('ETag'));
     }
 
     public function testUpdateWithMatchingIfMatchIncrementsVersion(): void
@@ -58,7 +55,6 @@ final class DocTest extends ApiTestCase
         $r = $this->call('PUT', '/api/doc', ['envelope' => $this->envelope('two')], ['If-Match' => '"1"']);
         self::assertSame(200, $r->status);
         self::assertSame(['version' => 2], $r->data());
-        self::assertSame('"2"', $r->header('ETag'));
 
         $r = $this->call('PUT', '/api/doc', ['envelope' => $this->envelope('three')], ['If-Match' => '"2"']);
         self::assertSame(['version' => 3], $r->data());
@@ -74,21 +70,14 @@ final class DocTest extends ApiTestCase
         $r = $this->call('PUT', '/api/doc', ['envelope' => $this->envelope('mine')], ['If-Match' => '"1"']);
         self::assertSame(409, $r->status);
         self::assertSame(['version' => 2, 'envelope' => $this->envelope('two')], $r->data());
-        self::assertSame('"2"', $r->header('ETag'));
         self::assertSame($this->envelope('two'), $this->data($this->call('GET', '/api/doc'))['envelope']);
-    }
-
-    public function testIfMatchFormsAreAccepted(): void
-    {
-        $this->call('PUT', '/api/doc', ['envelope' => $this->envelope()], ['If-None-Match' => '*']);
-        self::assertSame(200, $this->call('PUT', '/api/doc', ['envelope' => $this->envelope('a')], ['If-Match' => 'W/"1"'])->status);
-        self::assertSame(200, $this->call('PUT', '/api/doc', ['envelope' => $this->envelope('b')], ['If-Match' => '2'])->status);
     }
 
     public function testIfMatchStarAndGarbageAreConflicts(): void
     {
         $this->call('PUT', '/api/doc', ['envelope' => $this->envelope('one')], ['If-None-Match' => '*']);
-        foreach (['*', 'garbage', '"0"'] as $value) {
+        // Only the quoted form the client sends counts; others (also W/"1" and a bare 1) are stale.
+        foreach (['*', 'garbage', '"0"', '1', 'W/"1"'] as $value) {
             $r = $this->call('PUT', '/api/doc', ['envelope' => $this->envelope('x')], ['If-Match' => $value]);
             self::assertSame(409, $r->status, $value);
             self::assertSame(['version' => 1, 'envelope' => $this->envelope('one')], $r->data());
@@ -99,21 +88,6 @@ final class DocTest extends ApiTestCase
     {
         $r = $this->call('PUT', '/api/doc', ['envelope' => $this->envelope()], ['If-Match' => '"1"']);
         self::assertSame(404, $r->status);
-    }
-
-    public function testGetHonoursIfNoneMatch(): void
-    {
-        $this->call('PUT', '/api/doc', ['envelope' => $this->envelope()], ['If-None-Match' => '*']);
-
-        $same = $this->call('GET', '/api/doc', headers: ['If-None-Match' => '"1"']);
-        self::assertSame(304, $same->status);
-        self::assertSame('', $same->body);
-        self::assertSame('"1"', $same->header('ETag'));
-
-        self::assertSame(200, $this->call('GET', '/api/doc', headers: ['If-None-Match' => '"0"'])->status);
-
-        $this->call('PUT', '/api/doc', ['envelope' => $this->envelope('x')], ['If-Match' => '"1"']);
-        self::assertSame(200, $this->call('GET', '/api/doc', headers: ['If-None-Match' => '"1"'])->status);
     }
 
     public function testLargeEnvelopeNearTheLimitIsStored(): void

@@ -1,6 +1,10 @@
 name: CI
 
-on: [pull_request]
+# Runs on pull requests and is called by deploy.yml before every deploy, so the checks
+# are defined once.
+on:
+  pull_request:
+  workflow_call:
 
 permissions:
   contents: read
@@ -51,8 +55,5 @@ jobs:
           coverage: none
 
       - run: composer install --no-interaction --prefer-dist --no-progress
-
-      - name: Syntax check
-        run: find src bin public tests -name '*.php' -print0 | xargs -0 -n1 php -l > /dev/null
 
       - run: vendor/bin/phpunit

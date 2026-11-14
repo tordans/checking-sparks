@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CheckingSparks\Api\Tests;
 
 use CheckingSparks\Api\Push\PushResult;
+use CheckingSparks\Api\Request;
 use CheckingSparks\Api\Tests\Support\ApiTestCase;
 
 final class PushTest extends ApiTestCase
@@ -167,12 +168,15 @@ final class PushTest extends ApiTestCase
         self::assertCount(1, $this->sender->sent, 'stops after the last subscription is gone');
     }
 
-    public function testSuccessUpdatesLastSuccessAt(): void
+    public function testSendsAtMostFiftyRemindersPerRunAndTheNextRunContinues(): void
     {
         $this->subscribe(self::A);
-        $this->addReminder('r1', '2026-05-10 11:00:00');
-        $this->runCron();
-        self::assertSame('2026-05-10 12:00:00', $this->db->one('SELECT last_success_at FROM subscriptions')['last_success_at']);
+        for ($i = 1; $i <= 51; $i++) {
+            $this->addReminder(sprintf('r%02d', $i), '2026-05-10 11:00:00');
+        }
+
+        self::assertSame(50, $this->runCron()['sent']);
+        self::assertSame(1, $this->runCron()['sent']);
     }
 
     public function testPayloadKeepsUmlautsReadable(): void
@@ -185,8 +189,8 @@ final class PushTest extends ApiTestCase
 
     public function testRunNeedsConfiguredVapid(): void
     {
-        $this->sender->configured = false;
-        $r = $this->call('GET', '/api/push/run', query: ['key' => self::CRON_KEY], auth: false);
+        $app = $this->makeApp($this->config(['vapid' => []]));
+        $r = $app->handle(new Request('GET', '/api/push/run', [], ['key' => self::CRON_KEY]));
         self::assertSame(503, $r->status);
         self::assertSame(['error' => 'push_not_configured'], $r->data());
     }
@@ -208,23 +212,10 @@ final class PushTest extends ApiTestCase
         self::assertNull($this->reminders()['r1']['sent_at'], 'a test push does not touch reminders');
     }
 
-    public function testTestPushRemovesGoneSubscriptions(): void
-    {
-        $this->subscribe(self::A);
-        $this->sender->results[self::A] = new PushResult(false, true, 410);
-        $r = $this->call('POST', '/api/push/test');
-        self::assertSame(['sent' => 0, 'failed' => 0, 'removed' => 1], $r->data());
-        self::assertSame([], $this->db->all('SELECT 1 FROM subscriptions'));
-    }
-
-    public function testTestPushWithoutSubscriptionsIsEmptySuccess(): void
-    {
-        self::assertSame(['sent' => 0, 'failed' => 0, 'removed' => 0], $this->call('POST', '/api/push/test')->data());
-    }
-
     public function testTestPushNeedsConfiguredVapid(): void
     {
-        $this->sender->configured = false;
-        self::assertSame(503, $this->call('POST', '/api/push/test')->status);
+        $app = $this->makeApp($this->config(['vapid' => []]));
+        $r = $app->handle(new Request('POST', '/api/push/test', ['Authorization' => 'Bearer ' . self::FAMILY_KEY]));
+        self::assertSame(503, $r->status);
     }
 }

@@ -33,8 +33,8 @@ die Website-Daten im Browser gelöscht werden.
 | --- | --- | --- |
 | Familiendokument (alles aus der Tabelle oben) | **Ende-zu-Ende verschlüsselt**: AES-GCM 256, Schlüssel per PBKDF2-SHA-256 (600 000 Runden) aus der Familien-Passphrase, im Browser erzeugt | niemanden ohne Passphrase, auch nicht Hoster oder Betreiber |
 | Erinnerungsplan: Zeitpunkt, Titel, Text, Link je geplanter Erinnerung, z. B. „Lena: Zahnarzt buchen“ / „Termin bis 31.03. machen.“, am Vorabend eines Termins der Praxisname | **Klartext** | Betreiber, Hoster, wer die Datenbank ausliest |
-| Push-Abos: Push-Adresse des Geräts beim Push-Dienst, dessen öffentliche Schlüssel, Gerätename | Klartext | dito |
-| Familien-, Cron- und Deploy-Schlüssel | nur als SHA-256-Hash in der Konfiguration | – |
+| Push-Abos: Push-Adresse des Geräts beim Push-Dienst und dessen öffentliche Schlüssel | Klartext | dito |
+| Familien- und Cron-Schlüssel | nur als SHA-256-Hash in der Konfiguration | – |
 | Fehlerprotokoll `logs/api.log` | kurze Fehlermeldungen ohne Anfrage-Inhalte | Betreiber |
 | Zugriffsprotokolle des Webservers (IP-Adresse, Zeit, URL, Browser) | beim Hoster | Hoster, nach dessen Regeln |
 

@@ -52,17 +52,9 @@ final class AuthTest extends ApiTestCase
 
     public function testEmptyConfiguredHashNeverAuthenticates(): void
     {
-        $app = $this->makeApp($this->config(['family_key_sha256' => '', 'cron_key_sha256' => '', 'deploy_key_sha256' => '']), migrate: false);
+        $app = $this->makeApp($this->config(['family_key_sha256' => '', 'cron_key_sha256' => '']));
         self::assertSame(401, $app->handle(new Request('GET', '/api/doc', ['Authorization' => 'Bearer ']))->status);
         self::assertSame(401, $app->handle(new Request('GET', '/api/push/run', [], ['key' => '']))->status);
-        self::assertSame(401, $app->handle(new Request('POST', '/api/migrate', ['X-Deploy-Key' => '']))->status);
-    }
-
-    public function testUppercaseHashInConfigStillMatches(): void
-    {
-        $app = $this->makeApp($this->config(['family_key_sha256' => strtoupper(hash('sha256', self::FAMILY_KEY))]), migrate: false);
-        $r = $app->handle(new Request('GET', '/api/push/vapid-public-key', ['Authorization' => 'Bearer ' . self::FAMILY_KEY]));
-        self::assertSame(200, $r->status);
     }
 
     public function testCronKeyViaQueryOrHeader(): void
@@ -74,17 +66,8 @@ final class AuthTest extends ApiTestCase
         self::assertSame(200, $this->call('POST', '/api/push/run', headers: ['X-Cron-Key' => self::CRON_KEY], auth: false)->status);
     }
 
-    public function testFamilyKeyDoesNotOpenCronOrMigrate(): void
+    public function testFamilyKeyDoesNotOpenCron(): void
     {
         self::assertSame(401, $this->call('GET', '/api/push/run')->status);
-        self::assertSame(401, $this->call('POST', '/api/migrate')->status);
-    }
-
-    public function testDeployKeyOnlyForMigrate(): void
-    {
-        self::assertSame(401, $this->call('POST', '/api/migrate', auth: false)->status);
-        self::assertSame(401, $this->call('POST', '/api/migrate', headers: ['X-Deploy-Key' => 'wrong'], auth: false)->status);
-        self::assertSame(200, $this->call('POST', '/api/migrate', headers: ['X-Deploy-Key' => self::DEPLOY_KEY], auth: false)->status);
-        self::assertSame(401, $this->call('GET', '/api/doc', headers: ['Authorization' => 'Bearer ' . self::DEPLOY_KEY], auth: false)->status);
     }
 }

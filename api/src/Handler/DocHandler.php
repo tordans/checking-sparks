@@ -21,18 +21,14 @@ final class DocHandler
     {
     }
 
-    public function get(Request $request): Response
+    public function get(): Response
     {
         $row = $this->current();
         if ($row === null) {
             throw new HttpException(404, 'not_found');
         }
-        $etag = self::etag($row['version']);
-        if (self::etagMatches($request->header('if-none-match'), $etag)) {
-            return Response::empty(304, ['ETag' => $etag]);
-        }
 
-        return self::docResponse(200, $row, $etag);
+        return self::docResponse(200, $row);
     }
 
     public function put(Request $request): Response
@@ -61,7 +57,7 @@ final class DocHandler
                 return self::conflict($this->current() ?? $row);
             }
 
-            return self::versionResponse($row['version'] + 1);
+            return Response::json(200, ['version' => $row['version'] + 1]);
         }
 
         if ($ifNoneMatch !== null && trim($ifNoneMatch) === '*') {
@@ -81,7 +77,7 @@ final class DocHandler
                 throw $e;
             }
 
-            return self::versionResponse(1);
+            return Response::json(200, ['version' => 1]);
         }
 
         throw new HttpException(428, 'precondition_required');
@@ -109,50 +105,21 @@ final class DocHandler
         return json_encode($envelope, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     }
 
-    private static function etag(int $version): string
-    {
-        return '"' . $version . '"';
-    }
-
-    /** Accepts "3", W/"3", 3. Returns null for anything else. */
+    /** Only the form the client sends: the version in quotes, e.g. "3". Anything else is null. */
     private static function parseVersion(string $header): ?int
     {
-        if (preg_match('/^\s*(?:W\/)?"?(\d{1,18})"?\s*$/', $header, $m) === 1) {
-            return (int) $m[1];
-        }
-
-        return null;
-    }
-
-    private static function etagMatches(?string $header, string $etag): bool
-    {
-        if ($header === null) {
-            return false;
-        }
-        foreach (explode(',', $header) as $candidate) {
-            $candidate = trim($candidate);
-            if ($candidate === '*' || $candidate === $etag || $candidate === 'W/' . $etag) {
-                return true;
-            }
-        }
-
-        return false;
+        return preg_match('/^"(\d{1,18})"\z/', $header, $m) === 1 ? (int) $m[1] : null;
     }
 
     /** @param array{version: int, envelope: string} $row */
-    private static function docResponse(int $status, array $row, string $etag): Response
+    private static function docResponse(int $status, array $row): Response
     {
-        return Response::raw($status, '{"version":' . $row['version'] . ',"envelope":' . $row['envelope'] . '}', ['ETag' => $etag]);
+        return Response::raw($status, '{"version":' . $row['version'] . ',"envelope":' . $row['envelope'] . '}');
     }
 
     /** @param array{version: int, envelope: string} $row */
     private static function conflict(array $row): Response
     {
-        return self::docResponse(409, $row, self::etag($row['version']));
-    }
-
-    private static function versionResponse(int $version): Response
-    {
-        return Response::json(200, ['version' => $version], ['ETag' => self::etag($version)]);
+        return self::docResponse(409, $row);
     }
 }

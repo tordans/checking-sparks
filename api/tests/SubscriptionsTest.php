@@ -13,7 +13,7 @@ final class SubscriptionsTest extends ApiTestCase
     /** @return list<array<string, mixed>> */
     private function rows(): array
     {
-        return $this->db->all('SELECT endpoint, p256dh, auth, label, created_at, last_success_at FROM subscriptions ORDER BY endpoint');
+        return $this->db->all('SELECT endpoint, p256dh, auth, created_at FROM subscriptions ORDER BY endpoint');
     }
 
     public function testVapidPublicKey(): void
@@ -25,7 +25,7 @@ final class SubscriptionsTest extends ApiTestCase
 
     public function testVapidPublicKeyMissingIs503(): void
     {
-        $app = $this->makeApp($this->config(['vapid' => []]), migrate: false);
+        $app = $this->makeApp($this->config(['vapid' => []]));
         $r = $app->handle(new \CheckingSparks\Api\Request('GET', '/api/push/vapid-public-key', ['Authorization' => 'Bearer ' . self::FAMILY_KEY]));
         self::assertSame(503, $r->status);
     }
@@ -35,7 +35,6 @@ final class SubscriptionsTest extends ApiTestCase
         $r = $this->call('POST', '/api/push/subscriptions', [
             'endpoint' => self::ENDPOINT,
             'keys' => ['p256dh' => 'BKey-_1', 'auth' => 'auth-_1'],
-            'label' => 'Lenas iPhone',
         ]);
         self::assertSame(201, $r->status);
 
@@ -44,21 +43,17 @@ final class SubscriptionsTest extends ApiTestCase
         self::assertSame(self::ENDPOINT, $rows[0]['endpoint']);
         self::assertSame('BKey-_1', $rows[0]['p256dh']);
         self::assertSame('auth-_1', $rows[0]['auth']);
-        self::assertSame('Lenas iPhone', $rows[0]['label']);
         self::assertSame('2026-05-10 12:00:00', $rows[0]['created_at']);
-        self::assertNull($rows[0]['last_success_at']);
     }
 
-    public function testUpsertUpdatesKeysAndLabelButKeepsTimestamps(): void
+    public function testUpsertUpdatesKeysButKeepsCreatedAt(): void
     {
-        $this->subscribe(self::ENDPOINT, 'old');
-        $this->db->run("UPDATE subscriptions SET last_success_at = '2026-05-09 10:00:00'");
+        $this->subscribe(self::ENDPOINT);
         $this->now = $this->now->modify('+1 day');
 
         $r = $this->call('POST', '/api/push/subscriptions', [
             'endpoint' => self::ENDPOINT,
             'keys' => ['p256dh' => 'NewKey', 'auth' => 'NewAuth'],
-            'label' => 'new',
         ]);
         self::assertSame(201, $r->status);
 
@@ -66,9 +61,7 @@ final class SubscriptionsTest extends ApiTestCase
         self::assertCount(1, $rows);
         self::assertSame('NewKey', $rows[0]['p256dh']);
         self::assertSame('NewAuth', $rows[0]['auth']);
-        self::assertSame('new', $rows[0]['label']);
         self::assertSame('2026-05-10 12:00:00', $rows[0]['created_at']);
-        self::assertSame('2026-05-09 10:00:00', $rows[0]['last_success_at']);
     }
 
     /** @return iterable<string, array{string}> */
@@ -98,15 +91,18 @@ final class SubscriptionsTest extends ApiTestCase
         self::assertSame(['error' => 'invalid_endpoint'], $r->data());
     }
 
-    public function testLabelIsOptionalAndExtraBrowserFieldsAreIgnored(): void
+    public function testExtraBrowserFieldsAndLegacyLabelAreIgnored(): void
     {
-        $r = $this->call('POST', '/api/push/subscriptions', [
-            'endpoint' => self::ENDPOINT,
-            'expirationTime' => null,
-            'keys' => ['p256dh' => 'K', 'auth' => 'A'],
-        ]);
-        self::assertSame(201, $r->status);
-        self::assertSame('', $this->rows()[0]['label']);
+        foreach (['Lenas iPhone', 3, str_repeat('x', 500)] as $label) {
+            $r = $this->call('POST', '/api/push/subscriptions', [
+                'endpoint' => self::ENDPOINT,
+                'expirationTime' => null,
+                'keys' => ['p256dh' => 'K', 'auth' => 'A'],
+                'label' => $label,
+            ]);
+            self::assertSame(201, $r->status);
+        }
+        self::assertCount(1, $this->rows());
     }
 
     public function testDeleteRemovesSubscriptionAndIsIdempotent(): void
@@ -125,7 +121,7 @@ final class SubscriptionsTest extends ApiTestCase
     /** @return iterable<string, array{array<string, mixed>}> */
     public static function invalidSubscriptions(): iterable
     {
-        $ok = ['endpoint' => 'https://fcm.googleapis.com/x', 'keys' => ['p256dh' => 'K', 'auth' => 'A'], 'label' => 'x'];
+        $ok = ['endpoint' => 'https://fcm.googleapis.com/x', 'keys' => ['p256dh' => 'K', 'auth' => 'A']];
         yield 'missing endpoint' => [array_diff_key($ok, ['endpoint' => 1])];
         yield 'http endpoint' => [['endpoint' => 'http://fcm.googleapis.com/x'] + $ok];
         yield 'localhost' => [['endpoint' => 'https://localhost/x'] + $ok];
@@ -147,8 +143,6 @@ final class SubscriptionsTest extends ApiTestCase
         yield 'missing auth' => [['keys' => ['p256dh' => 'K']] + $ok];
         yield 'bad characters in key' => [['keys' => ['p256dh' => 'K K', 'auth' => 'A']] + $ok];
         yield 'empty key' => [['keys' => ['p256dh' => '', 'auth' => 'A']] + $ok];
-        yield 'long label' => [['label' => str_repeat('x', 101)] + $ok];
-        yield 'label not string' => [['label' => 3] + $ok];
     }
 
     /** @param array<string, mixed> $body */

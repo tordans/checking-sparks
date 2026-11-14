@@ -9,18 +9,11 @@ use CheckingSparks\Api\Push\PushSender;
 
 final class FakeSender implements PushSender
 {
-    public bool $configured = true;
-
     /** @var list<array{endpoint: string, payload: array<string, string>, ttl: int, urgency: string}> */
     public array $sent = [];
 
     /** @var array<string, PushResult> result per endpoint; default is success */
     public array $results = [];
-
-    public function isConfigured(): bool
-    {
-        return $this->configured;
-    }
 
     public function send(array $subscription, string $payload, int $ttlSeconds, string $urgency): PushResult
     {

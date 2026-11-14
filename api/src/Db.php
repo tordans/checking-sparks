@@ -26,11 +26,6 @@ final class Db
         return new self($pdo);
     }
 
-    public function isSqlite(): bool
-    {
-        return $this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite';
-    }
-
     /** UTC timestamp string as stored in DATETIME columns. */
     public static function format(\DateTimeInterface $at): string
     {

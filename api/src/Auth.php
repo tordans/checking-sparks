@@ -26,13 +26,6 @@ final class Auth
         return is_string($given) && self::matches($given, $this->config->cronKeySha256());
     }
 
-    public function deploy(Request $request): bool
-    {
-        $given = $request->header('x-deploy-key');
-
-        return $given !== null && self::matches($given, $this->config->deployKeySha256());
-    }
-
     private static function matches(string $given, string $expectedHash): bool
     {
         if ($given === '' || $expectedHash === '') {

@@ -33,11 +33,12 @@ public/
   manifest.webmanifest, sw.js, pwa-icons/
 api/
   public/index.php          entry (copied to dist/api/index.php on deploy)
-  src/                      App.php (routing, auth, error mapping), Db.php, Handler/, Push/ (WebPush sending)
-  migrations/               001_init.sql, …
+  src/                      App.php (routing, auth, error mapping), Db.php, Migrator.php, Handler/, Push/
+  migrations/               001_init.sql, … (applied by the API itself)
   tests/                    PHPUnit tests against SQLite
   composer.json             minishlink/web-push, phpunit (dev)
-.github/workflows/          ci.yml (bun run check-ci, dependency review, PHP tests), deploy.yml (same checks, then FTPS upload)
+.github/workflows/          ci.yml (bun run check-ci, dependency review, PHP tests; also called by deploy.yml),
+                            deploy.yml (ci.yml first, then build and FTPS upload)
 ```
 
 ## Data model (`schemaVersion: 1`)
@@ -145,23 +146,16 @@ Envelope {
 
 ## Server API (`api/`)
 
-PHP 8.5, no framework, PDO (MariaDB in production, SQLite in tests). JSON in and out.
-`health` needs no auth, `push/run` takes the cron key (`?key=` or `X-Cron-Key`), and `migrate` takes the deploy key in `X-Deploy-Key`, never the family key. All other endpoints require `Authorization: Bearer <familyKey>`;
-the server only stores `sha256(familyKey)` (from config). Responses never echo request bodies;
-error logs never contain bodies. Malformed or empty JSON bodies answer `400 { error: "invalid_json" }`.
+PHP 8.5, no framework, PDO (MariaDB in production, SQLite in tests). JSON in and out. The endpoint
+table, status codes and validation rules are in [api/README.md](../api/README.md); deployment is in
+[deploy.md](deploy.md).
 
-| Method + path                    | Body / headers                                                            | Result                                                                                                                                     |
-| -------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `GET /api/health`                | –                                                                         | `{ ok: true, commit }`                                                                                                                     |
-| `GET /api/doc` | family | `200 { version, envelope }` + `ETag: "<version>"`; `304` with matching `If-None-Match`; `404` if no doc yet |
-| `PUT /api/doc` | family | body `{ envelope }`. `If-Match: "<version>"` updates, `If-None-Match: *` creates. `200 { version }` + `ETag`; `409 { version, envelope }` (+ `ETag`) on mismatch or when creating over an existing doc; `404` for `If-Match` without a doc; `428` without precondition; any other `If-Match` (also `*`) is a stale precondition and answers `409`; `422 invalid_envelope` unless the envelope is a non-empty object |
-| `PUT /api/reminders` | family | body `{ reminders: Reminder[] }`. In one transaction: deletes all unsent reminders, inserts the given ones, skips ids that already exist as sent/skipped. `200 { count }` (= inserted); `422 invalid_body` for the wrong shape, `422 invalid_reminder` (with `index`, `field`) for an invalid entry, `422 too_many_reminders` above 2000 |
-| `GET /api/push/vapid-public-key` | family | `200 { key }`; `503 push_not_configured` without VAPID keys |
-| `POST /api/push/subscriptions`   | `{ endpoint, keys: { p256dh, auth }, label }`                             | `201` (upsert by endpoint); `422 invalid_endpoint` unless `https` and a known push service (FCM, Mozilla, Apple, Windows) |                                                                                                               |
-| `DELETE /api/push/subscriptions` | `{ endpoint }`                                                            | `204`                                                                                                                                      |
-| `POST /api/push/test` | family | sends `{ id: "test", title: "Checking Sparks", body: "Test-Benachrichtigung", path: "/" }` to all subscriptions; `200 { sent, failed, removed }`; `503 push_not_configured` |
-| `GET`/`POST /api/push/run` | cron | `?key=<cronKey>` or `X-Cron-Key`; sends due, unsent reminders to all subscriptions and marks them sent; deletes subscriptions that answer 404/410; reminders more than 3 days late are marked `skipped` and not sent; `200 { sent, failed, removed, skipped }`; `503 push_not_configured` |
-| `POST /api/migrate` | deploy | `X-Deploy-Key` (not the family key); applies pending `migrations/*.sql`; `200 { applied: [names] }` |
+Auth in short: `GET /api/health` needs none; `/api/push/run` takes the cron key (`?key=` or
+`X-Cron-Key`); every other endpoint takes `Authorization: Bearer <familyKey>`. The server only
+stores `sha256` of both keys (from config). The document is versioned: `PUT /api/doc` needs
+`If-Match: "<version>"` (update) or `If-None-Match: *` (create) and answers `409` with the current
+document on a conflict. Responses never echo request bodies; error logs never contain bodies. The
+API creates and updates its tables itself (`migrations/`), there is no deploy-time migration call.
 
 `version` is an integer incremented on every write. The envelope is stored as an opaque string
 (max 2 MB).
@@ -241,5 +235,6 @@ replaces the unsent ones, so booking a date stops the booking reminders.
 ## Tooling
 
 Same as `../vacation-planner`: Bun, Vite, React 19 (+ React Compiler), TanStack Router, Zod 4,
-date-fns 4, Tailwind 4, oxlint, oxfmt, Knip, Vitest, TypeScript 7. Scripts `check`, `check-ci`. CI runs `bun run check-ci` (`.github/workflows/ci.yml`; `deploy.yml` runs it before uploading).
-PHP: tests run with `docker run php:8.5-cli` locally and `shivammathur/setup-php` in CI.
+date-fns 4, Tailwind 4, oxlint, oxfmt, Knip, Vitest, TypeScript 7. Scripts `check`, `check-ci`. CI runs `bun run check-ci` (`.github/workflows/ci.yml`; `deploy.yml` calls it before uploading).
+PHP: tests run via the `api/Dockerfile.test` image locally (`bun run test-php`) and
+`shivammathur/setup-php` in CI.

@@ -21,7 +21,6 @@ abstract class ApiTestCase extends TestCase
 {
     protected const FAMILY_KEY = 'family-secret-key';
     protected const CRON_KEY = 'cron-secret-key';
-    protected const DEPLOY_KEY = 'deploy-secret-key';
 
     protected Db $db;
     protected FakeSender $sender;
@@ -35,6 +34,8 @@ abstract class ApiTestCase extends TestCase
         $this->now = new \DateTimeImmutable('2026-05-10 12:00:00', new \DateTimeZone('UTC'));
         $this->sender = new FakeSender();
         $this->db = self::freshDb();
+        // The app migrates by itself on its first database request; the tests also insert rows directly.
+        (new Migrator($this->db, $this->migrationsDir))->migrate();
         $this->app = $this->makeApp();
     }
 
@@ -59,25 +60,20 @@ abstract class ApiTestCase extends TestCase
         return new Config($overrides + [
             'family_key_sha256' => hash('sha256', self::FAMILY_KEY),
             'cron_key_sha256' => hash('sha256', self::CRON_KEY),
-            'deploy_key_sha256' => hash('sha256', self::DEPLOY_KEY),
             'vapid' => ['public_key' => 'PUBLIC-KEY', 'private_key' => 'PRIVATE', 'subject' => 'mailto:test@example.com'],
             'commit' => 'abc1234',
         ]);
     }
 
-    protected function makeApp(?Config $config = null, bool $migrate = true): App
+    protected function makeApp(?Config $config = null, ?string $migrationsDir = null): App
     {
-        if ($migrate) {
-            (new Migrator($this->db, $this->migrationsDir))->migrate();
-        }
-
         return new App(
             $config ?? $this->config(),
             fn (): Db => $this->db,
             $this->sender,
             fn (): \DateTimeImmutable => $this->now,
             new Logger('/dev/null'),
-            $this->migrationsDir,
+            $migrationsDir ?? $this->migrationsDir,
         );
     }
 
@@ -110,12 +106,11 @@ abstract class ApiTestCase extends TestCase
         return ['v' => 1, 'kdf' => ['name' => 'PBKDF2'], 'cipher' => ['name' => 'AES-GCM', 'iv' => 'aXY='], 'data' => $data];
     }
 
-    protected function subscribe(string $endpoint = 'https://fcm.googleapis.com/fcm/send/abc', string $label = 'Phone'): void
+    protected function subscribe(string $endpoint = 'https://fcm.googleapis.com/fcm/send/abc'): void
     {
         $response = $this->call('POST', '/api/push/subscriptions', [
             'endpoint' => $endpoint,
             'keys' => ['p256dh' => 'BPublicKey_-', 'auth' => 'authSecret_-'],
-            'label' => $label,
         ]);
         self::assertSame(201, $response->status);
     }

@@ -6,20 +6,18 @@ namespace CheckingSparks\Api;
 
 use Closure;
 use CheckingSparks\Api\Handler\DocHandler;
-use CheckingSparks\Api\Handler\PushHandler;
 use CheckingSparks\Api\Handler\ReminderHandler;
 use CheckingSparks\Api\Handler\SubscriptionHandler;
 use CheckingSparks\Api\Push\PushSender;
 use CheckingSparks\Api\Push\PushService;
 use CheckingSparks\Api\Push\WebPushSender;
 
-/** Front controller: routing, auth, size limit, CORS, error mapping. */
+/** Front controller: routing, auth, size limit, error mapping. */
 final class App
 {
     private const AUTH_NONE = 'none';
     private const AUTH_FAMILY = 'family';
     private const AUTH_CRON = 'cron';
-    private const AUTH_DEPLOY = 'deploy';
 
     private ?Db $db = null;
     private readonly Auth $auth;
@@ -65,7 +63,7 @@ final class App
             $response = Response::json(500, ['error' => 'internal_error']);
         }
 
-        return $this->decorate($request, $response);
+        return $this->decorate($response);
     }
 
     private function dispatch(Request $request): Response
@@ -74,10 +72,6 @@ final class App
         $routes = array_filter($this->routes(), static fn (array $r): bool => $r['path'] === $path);
         if ($routes === []) {
             throw new HttpException(404, 'not_found');
-        }
-
-        if ($request->method === 'OPTIONS') {
-            return Response::empty(204);
         }
 
         $route = null;
@@ -100,7 +94,6 @@ final class App
             self::AUTH_NONE => true,
             self::AUTH_FAMILY => $this->auth->family($request),
             self::AUTH_CRON => $this->auth->cron($request),
-            self::AUTH_DEPLOY => $this->auth->deploy($request),
         };
         if (!$authorized) {
             throw new HttpException(401, 'unauthorized', [], ['WWW-Authenticate' => 'Bearer']);
@@ -118,29 +111,39 @@ final class App
             ['path' => '/api/health', 'methods' => ['GET'], 'auth' => self::AUTH_NONE,
                 'handler' => fn (): Response => Response::json(200, ['ok' => true, 'commit' => $this->config->commit()])],
             ['path' => '/api/doc', 'methods' => ['GET'], 'auth' => self::AUTH_FAMILY,
-                'handler' => fn (Request $r): Response => $this->doc()->get($r)],
+                'handler' => fn (): Response => $this->doc()->get()],
             ['path' => '/api/doc', 'methods' => ['PUT'], 'auth' => self::AUTH_FAMILY,
                 'handler' => fn (Request $r): Response => $this->doc()->put($r)],
             ['path' => '/api/reminders', 'methods' => ['PUT'], 'auth' => self::AUTH_FAMILY,
                 'handler' => fn (Request $r): Response => (new ReminderHandler($this->db(), $this->clock))->replace($r)],
             ['path' => '/api/push/vapid-public-key', 'methods' => ['GET'], 'auth' => self::AUTH_FAMILY,
-                'handler' => fn (): Response => $this->push()->vapidPublicKey()],
+                'handler' => fn (): Response => $this->vapidPublicKey()],
             ['path' => '/api/push/subscriptions', 'methods' => ['POST'], 'auth' => self::AUTH_FAMILY,
                 'handler' => fn (Request $r): Response => $this->subscriptions()->upsert($r)],
             ['path' => '/api/push/subscriptions', 'methods' => ['DELETE'], 'auth' => self::AUTH_FAMILY,
                 'handler' => fn (Request $r): Response => $this->subscriptions()->delete($r)],
             ['path' => '/api/push/test', 'methods' => ['POST'], 'auth' => self::AUTH_FAMILY,
-                'handler' => fn (): Response => $this->push()->test()],
+                'handler' => fn (): Response => Response::json(200, $this->push()->test())],
             ['path' => '/api/push/run', 'methods' => ['GET', 'POST'], 'auth' => self::AUTH_CRON,
-                'handler' => fn (): Response => $this->push()->run()],
-            ['path' => '/api/migrate', 'methods' => ['POST'], 'auth' => self::AUTH_DEPLOY,
-                'handler' => fn (): Response => Response::json(200, ['applied' => (new Migrator($this->db(), $this->migrationsDir))->migrate()])],
+                'handler' => fn (): Response => Response::json(200, $this->push()->run())],
         ];
     }
 
+    /**
+     * The database with pending migrations applied. Only routes that need the database get here,
+     * never /api/health. Runs once per request (the app is built per request); when nothing is
+     * pending, the migrator costs one CREATE TABLE IF NOT EXISTS and one query for the names
+     * already applied.
+     */
     private function db(): Db
     {
-        return $this->db ??= ($this->dbFactory)();
+        if ($this->db === null) {
+            $db = ($this->dbFactory)();
+            (new Migrator($db, $this->migrationsDir))->migrate();
+            $this->db = $db;
+        }
+
+        return $this->db;
     }
 
     private function doc(): DocHandler
@@ -153,29 +156,32 @@ final class App
         return new SubscriptionHandler($this->db(), $this->clock);
     }
 
-    private function push(): PushHandler
+    private function vapidPublicKey(): Response
     {
-        return new PushHandler($this->config, $this->sender, new PushService($this->db(), $this->sender, $this->clock));
+        $this->requireVapid();
+
+        return Response::json(200, ['key' => $this->config->vapidPublicKey()]);
     }
 
-    /** Security headers, no caching, and CORS only for the configured dev origin. */
-    private function decorate(Request $request, Response $response): Response
+    private function push(): PushService
+    {
+        $this->requireVapid();
+
+        return new PushService($this->db(), $this->sender, $this->clock);
+    }
+
+    private function requireVapid(): void
+    {
+        if (!$this->config->vapidConfigured()) {
+            throw new HttpException(503, 'push_not_configured');
+        }
+    }
+
+    /** Security headers and no caching. The API is same-origin only, so no CORS headers. */
+    private function decorate(Response $response): Response
     {
         $response->headers['Cache-Control'] = 'no-store';
         $response->headers['X-Content-Type-Options'] = 'nosniff';
-
-        $origin = $request->header('origin');
-        $dev = $this->config->devOrigin();
-        if ($origin !== null && $dev !== null && $origin === $dev) {
-            $response->headers['Access-Control-Allow-Origin'] = $origin;
-            $response->headers['Vary'] = 'Origin';
-            $response->headers['Access-Control-Expose-Headers'] = 'ETag';
-            if ($request->method === 'OPTIONS') {
-                $response->headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS';
-                $response->headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type, If-Match, If-None-Match, X-Cron-Key, X-Deploy-Key';
-                $response->headers['Access-Control-Max-Age'] = '600';
-            }
-        }
 
         return $response;
     }

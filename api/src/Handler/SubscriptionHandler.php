@@ -13,7 +13,6 @@ use CheckingSparks\Api\Response;
 final class SubscriptionHandler
 {
     public const MAX_ENDPOINT = 500;
-    public const MAX_LABEL = 100;
 
     /** Push services the server is willing to POST to (exact host names). */
     private const PUSH_HOSTS = [
@@ -44,21 +43,18 @@ final class SubscriptionHandler
         }
         $p256dh = self::key($keys['p256dh'] ?? null);
         $auth = self::key($keys['auth'] ?? null);
-        $label = $body['label'] ?? '';
-        if (!is_string($label) || mb_strlen($label) > self::MAX_LABEL || !mb_check_encoding($label, 'UTF-8')) {
-            throw new HttpException(422, 'invalid_label');
-        }
 
+        // A "label" sent by older clients is ignored (the column keeps its default).
         $now = Db::format(($this->clock)());
-        $this->db->transaction(function () use ($endpoint, $p256dh, $auth, $label, $now): void {
-            // created_at and last_success_at survive a re-subscribe of the same endpoint.
+        $this->db->transaction(function () use ($endpoint, $p256dh, $auth, $now): void {
+            // created_at survives a re-subscribe of the same endpoint.
             $exists = $this->db->one('SELECT 1 AS present FROM subscriptions WHERE endpoint = ?', [$endpoint]) !== null;
             if ($exists) {
-                $this->db->run('UPDATE subscriptions SET p256dh = ?, auth = ?, label = ? WHERE endpoint = ?', [$p256dh, $auth, $label, $endpoint]);
+                $this->db->run('UPDATE subscriptions SET p256dh = ?, auth = ? WHERE endpoint = ?', [$p256dh, $auth, $endpoint]);
             } else {
                 $this->db->run(
-                    'INSERT INTO subscriptions (endpoint, p256dh, auth, label, created_at, last_success_at) VALUES (?, ?, ?, ?, ?, NULL)',
-                    [$endpoint, $p256dh, $auth, $label, $now],
+                    'INSERT INTO subscriptions (endpoint, p256dh, auth, created_at) VALUES (?, ?, ?, ?)',
+                    [$endpoint, $p256dh, $auth, $now],
                 );
             }
         });

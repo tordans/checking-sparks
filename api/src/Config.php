@@ -39,13 +39,9 @@ final class Config
         if (is_string($env) && $env !== '') {
             return $env;
         }
-        foreach ([$apiRoot . '/config.php', dirname($apiRoot) . '/config/config.php'] as $candidate) {
-            if (is_file($candidate)) {
-                return $candidate;
-            }
-        }
+        $local = $apiRoot . '/config.php';
 
-        return dirname($apiRoot) . '/config/config.php';
+        return is_file($local) ? $local : dirname($apiRoot) . '/config/config.php';
     }
 
     public function dbDsn(): string
@@ -77,11 +73,6 @@ final class Config
         return $this->string(['cron_key_sha256']);
     }
 
-    public function deployKeySha256(): string
-    {
-        return $this->string(['deploy_key_sha256']);
-    }
-
     public function vapidPublicKey(): string
     {
         return $this->string(['vapid', 'public_key']);
@@ -100,14 +91,6 @@ final class Config
     public function vapidConfigured(): bool
     {
         return $this->vapidPublicKey() !== '' && $this->vapidPrivateKey() !== '' && $this->vapidSubject() !== '';
-    }
-
-    /** Extra origin allowed to call the API cross-origin (local dev server), or null. */
-    public function devOrigin(): ?string
-    {
-        $v = $this->string(['dev_origin']);
-
-        return $v === '' ? null : rtrim($v, '/');
     }
 
     public function commit(): string

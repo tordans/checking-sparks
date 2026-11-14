@@ -18,11 +18,6 @@ final class WebPushSender implements PushSender
     {
     }
 
-    public function isConfigured(): bool
-    {
-        return $this->config->vapidConfigured();
-    }
-
     public function send(array $subscription, string $payload, int $ttlSeconds, string $urgency): PushResult
     {
         try {
@@ -60,10 +55,8 @@ final class WebPushSender implements PushSender
                     'privateKey' => $this->config->vapidPrivateKey(),
                 ],
             ],
-            ['TTL' => 86400, 'urgency' => 'normal'],
-            10,
             [],
-            new PsrLogAdapter($this->logger),
+            10,
         );
     }
 }

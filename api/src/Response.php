@@ -28,9 +28,9 @@ final class Response
         return new self($status, $json, ['Content-Type' => 'application/json; charset=utf-8'] + $headers);
     }
 
-    public static function empty(int $status, array $headers = []): self
+    public static function empty(int $status): self
     {
-        return new self($status, '', $headers);
+        return new self($status);
     }
 
     public function header(string $name): ?string
@@ -56,7 +56,7 @@ final class Response
         foreach ($this->headers as $name => $value) {
             header($name . ': ' . $value);
         }
-        if ($this->status !== 204 && $this->status !== 304) {
+        if ($this->status !== 204) {
             echo $this->body;
         }
     }

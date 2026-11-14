@@ -1,8 +1,8 @@
 name: Deploy
 
-# Builds the app, tests the API, uploads both to the all-inkl webspace via FTPS, migrates the
-# database and checks that the new commit is live. See docs/deploy.md for the one-time setup and
-# the list of secrets (GitHub environment "production").
+# Runs the checks (ci.yml), builds the app and the API, uploads both to the all-inkl webspace via
+# FTPS and checks that the new commit is live. The API applies database migrations itself. See
+# docs/deploy.md for the one-time setup and the list of secrets (GitHub environment "production").
 
 on:
   push:
@@ -21,8 +21,18 @@ env:
   SITE_URL: https://check.ingsparks.de
 
 jobs:
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+    # ci.yml has a pull-request-only job that comments on the PR; a called workflow may not ask
+    # for more permissions than its caller grants, even for a job that is skipped on a push.
+    permissions:
+      contents: read
+      pull-requests: write
+
   deploy:
     name: Deploy
+    needs: ci
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 30
@@ -33,22 +43,12 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
-      - name: Check (types, lint, format, tests)
-        run: bun run check-ci
-
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, mbstring, curl, openssl, gmp
           tools: composer:v2
           coverage: none
-
-      - name: API tests (with dev dependencies)
-        working-directory: api
-        run: |
-          composer install --no-interaction --prefer-dist --no-progress
-          find src bin public tests -name '*.php' -print0 | xargs -0 -n1 php -l > /dev/null
-          vendor/bin/phpunit
 
       - name: API production dependencies
         working-directory: api
@@ -92,7 +92,6 @@ jobs:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           FAMILY_KEY_SHA256: ${{ secrets.FAMILY_KEY_SHA256 }}
           CRON_KEY_SHA256: ${{ secrets.CRON_KEY_SHA256 }}
-          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
           VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
@@ -124,13 +123,11 @@ jobs:
               ],
               'family_key_sha256' => $digest('FAMILY_KEY_SHA256'),
               'cron_key_sha256' => $digest('CRON_KEY_SHA256'),
-              'deploy_key_sha256' => hash('sha256', $need('DEPLOY_KEY')),
               'vapid' => [
                   'public_key' => $need('VAPID_PUBLIC_KEY'),
                   'private_key' => $need('VAPID_PRIVATE_KEY'),
                   'subject' => $need('VAPID_SUBJECT'),
               ],
-              'dev_origin' => '',
               'commit' => $need('COMMIT'),
           ];
           // The log file sits next to config/ on the server: check/logs/api.log (not public).
@@ -167,15 +164,6 @@ jobs:
           local-dir: ./deploy-index/
           server-dir: ./
           state-name: .ftp-deploy-sync-state-index.json
-
-      - name: Apply database migrations
-        env:
-          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
-        run: |
-          curl --fail-with-body --silent --show-error --max-time 60 \
-            --request POST --header "X-Deploy-Key: ${DEPLOY_KEY}" \
-            "${SITE_URL}/api/migrate"
-          echo
 
       - name: Check the live site
         run: |

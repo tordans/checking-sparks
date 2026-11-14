@@ -107,11 +107,6 @@ final class ReminderHandler
         if ($item['path'] === '' || mb_strlen($item['path']) > self::MAX_PATH || !str_starts_with($item['path'], '/') || str_starts_with($item['path'], '//')) {
             throw $invalid('path');
         }
-        foreach (['title', 'body', 'path'] as $field) {
-            if (!mb_check_encoding($item[$field], 'UTF-8')) {
-                throw $invalid($field);
-            }
-        }
 
         return [
             'id' => $item['id'],
