@@ -5,6 +5,7 @@ import { checkupNewRoute } from '@/routes/checkup-new'
 import { indexRoute } from '@/routes/index'
 import { pairRoute } from '@/routes/pair'
 import { personIndexRoute, personRoute } from '@/routes/person'
+import { privacyRoute } from '@/routes/privacy'
 import { rootRoute } from '@/routes/root'
 import { settingsRoute } from '@/routes/settings'
 
@@ -13,6 +14,7 @@ const routeTree = rootRoute.addChildren([
   personRoute.addChildren([personIndexRoute, checkupNewRoute, checkupDetailRoute]),
   settingsRoute,
   pairRoute,
+  privacyRoute,
 ])
 
 export const router = createRouter({

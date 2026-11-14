@@ -82,6 +82,11 @@ function RootLayout() {
       </header>
       <LockedBanner />
       <Outlet />
+      <footer className="mx-auto max-w-2xl px-4 py-8 text-sm/6 text-zinc-500 dark:text-zinc-400">
+        <Link to="/datenschutz" className="underline hover:text-zinc-950 dark:hover:text-white">
+          Datenschutz
+        </Link>
+      </footer>
     </div>
   )
 }
