@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { parseDoc } from './model'
 import { computeDue } from './schedule'
-import { checkupFromTemplate, findTemplate, suggestTemplates, TEMPLATES } from './templates'
+import {
+  checkupFromTemplate,
+  defaultSexFilter,
+  findTemplate,
+  suggestTemplates,
+  TEMPLATES,
+} from './templates'
 import { counterIds, docWith, noon, person } from './test-helpers'
 
 const get = (id: string) => {
@@ -88,15 +94,41 @@ describe('suggestTemplates: unknown data', () => {
           s,
         ]),
       )
-      expect(byId.get('prostata-dru')?.sexUnknown).toBe(true)
-      expect(byId.get('zervix-35')?.sexUnknown).toBe(true)
-      expect(byId.get('hautkrebs')?.sexUnknown).toBe(false)
+      expect(byId.get('prostata-dru')?.sexUnfiltered).toBe(true)
+      expect(byId.get('zervix-35')?.sexUnfiltered).toBe(true)
+      expect(byId.get('hautkrebs')?.sexUnfiltered).toBe(false)
     }
   })
 
   it('has no flags when everything is known', () => {
     const suggestions = suggestTemplates({ birthDate: '1975-01-01', sex: 'm' }, '2026-10-29')
-    expect(suggestions.every((s) => !s.ageUnknown && !s.sexUnknown)).toBe(true)
+    expect(suggestions.every((s) => !s.ageUnknown && !s.sexUnfiltered)).toBe(true)
+  })
+
+  it('the sex option replaces the person sex for filtering', () => {
+    const man = { birthDate: '1975-01-01', sex: 'm' } as const
+    const woman = suggestedIds(man, '2026-10-29', { sex: 'w' })
+    expect(woman).toContain('zervix-35')
+    expect(woman).not.toContain('prostata-dru')
+  })
+
+  it('the sex option "alle" turns the sex filter off and flags sex-specific rows', () => {
+    const man = { birthDate: '1975-01-01', sex: 'm' } as const
+    const all = new Map(
+      suggestTemplates(man, '2026-10-29', { sex: 'alle' }).map((s) => [s.template.id, s]),
+    )
+    expect(all.get('prostata-dru')?.sexUnfiltered).toBe(true)
+    expect(all.get('zervix-35')?.sexUnfiltered).toBe(true)
+    expect(all.get('hautkrebs')?.sexUnfiltered).toBe(false)
+  })
+})
+
+describe('defaultSexFilter', () => {
+  it('is the person sex if m or w, otherwise "alle"', () => {
+    expect(defaultSexFilter({ sex: 'm' })).toBe('m')
+    expect(defaultSexFilter({ sex: 'w' })).toBe('w')
+    expect(defaultSexFilter({ sex: 'd' })).toBe('alle')
+    expect(defaultSexFilter({ sex: undefined })).toBe('alle')
   })
 })
 

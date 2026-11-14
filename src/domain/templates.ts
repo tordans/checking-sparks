@@ -673,8 +673,8 @@ export interface Suggestion {
   template: Template
   /** The template is age-restricted but the person has no birth date, so it was not filtered. */
   ageUnknown: boolean
-  /** The template is sex-specific but the person's sex is not m/w, so it was not filtered. */
-  sexUnknown: boolean
+  /** The template is sex-specific and the list was not filtered by sex. */
+  sexUnfiltered: boolean
 }
 
 function isAgeRestricted(t: Template): boolean {
@@ -687,17 +687,19 @@ function matchesAge(t: Template, ageMonths: number): boolean {
 }
 
 /**
- * Templates that fit the person's age and sex, in catalog order. Without birth date or with
- * unknown sex the filter is skipped and the suggestion is flagged instead. Self checks are
- * left out unless `includeSelfChecks` is set.
+ * Templates that fit the person's age and sex, in catalog order. Without birth date the age
+ * filter is skipped and the suggestion is flagged instead. The sex filter is `options.sex` when
+ * given (`'alle'` turns it off), otherwise the person's sex; without a m/w sex it is skipped and
+ * the suggestion is flagged. Self checks are left out unless `includeSelfChecks` is set.
  */
 export function suggestTemplates(
   person: Pick<Person, 'birthDate' | 'sex'>,
   today: string,
-  options: { includeSelfChecks?: boolean } = {},
+  options: { includeSelfChecks?: boolean; sex?: 'm' | 'w' | 'alle' } = {},
 ): Suggestion[] {
   const ageMonths = person.birthDate ? monthsBetween(person.birthDate, today) : undefined
-  const sex = person.sex === 'm' || person.sex === 'w' ? person.sex : undefined
+  const requestedSex = options.sex ?? person.sex
+  const sex = requestedSex === 'm' || requestedSex === 'w' ? requestedSex : undefined
   const suggestions: Suggestion[] = []
   for (const t of TEMPLATES) {
     if (t.selfCheck && !options.includeSelfChecks) continue
@@ -706,10 +708,15 @@ export function suggestTemplates(
     suggestions.push({
       template: t,
       ageUnknown: ageMonths === undefined && isAgeRestricted(t),
-      sexUnknown: !sex && t.sex !== 'alle',
+      sexUnfiltered: !sex && t.sex !== 'alle',
     })
   }
   return suggestions
+}
+
+/** The sex filter the person starts with: their sex if m or w, otherwise `'alle'`. */
+export function defaultSexFilter(person: Pick<Person, 'sex'>): 'm' | 'w' | 'alle' {
+  return person.sex === 'm' || person.sex === 'w' ? person.sex : 'alle'
 }
 
 // --- Check-up from a template --------------------------------------------------------------

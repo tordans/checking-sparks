@@ -5,6 +5,7 @@ import { Badge } from '@/components/catalyst/badge'
 import { Button } from '@/components/catalyst/button'
 import { Label } from '@/components/catalyst/fieldset'
 import { Heading, Subheading } from '@/components/catalyst/heading'
+import { Select } from '@/components/catalyst/select'
 import { Switch, SwitchField } from '@/components/catalyst/switch'
 import { Text } from '@/components/catalyst/text'
 import { CheckupForm } from '@/components/checkup-form'
@@ -13,7 +14,7 @@ import { PersonDot } from '@/components/person-dot'
 import { addCheckup, newCheckup } from '@/domain/actions'
 import { today as todayOf } from '@/domain/dates'
 import type { Checkup } from '@/domain/model'
-import { checkupFromTemplate, suggestTemplates } from '@/domain/templates'
+import { checkupFromTemplate, defaultSexFilter, suggestTemplates } from '@/domain/templates'
 import type { Suggestion, Template, TemplateStatus } from '@/domain/templates'
 import { toFormValues } from '@/lib/checkup-form'
 import { dispatch, useDoc } from '@/sync/store'
@@ -33,13 +34,28 @@ const STATUS_COLORS = {
   Selbst: 'zinc',
 } as const satisfies Record<TemplateStatus, string>
 
+type SexFilter = 'm' | 'w' | 'alle'
+
+const SEX_FILTER_OPTIONS: readonly { value: SexFilter; label: string }[] = [
+  { value: 'w', label: 'Frauen' },
+  { value: 'm', label: 'Männer' },
+  { value: 'alle', label: 'Alle Geschlechter' },
+]
+
+function sexFilterFrom(value: string): SexFilter {
+  return value === 'm' || value === 'w' ? value : 'alle'
+}
+
 function NewCheckupPage() {
   const { personId } = checkupNewRoute.useParams()
   const doc = useDoc()
   const navigate = useNavigate()
+  const person = doc.persons.find((p) => p.id === personId)
   const [draft, setDraft] = useState<{ checkup: Checkup; template?: Template } | null>(null)
   const [onlyNew, setOnlyNew] = useState(true)
-  const person = doc.persons.find((p) => p.id === personId)
+  const [sexFilter, setSexFilter] = useState<SexFilter>(() =>
+    person ? defaultSexFilter(person) : 'alle',
+  )
   if (!person) return <PersonNotFound />
 
   const today = todayOf()
@@ -85,7 +101,7 @@ function NewCheckupPage() {
   const existing = new Set(
     doc.checkups.filter((c) => c.personId === personId).map((c) => c.templateId),
   )
-  const suggestions = suggestTemplates(person, today).filter(
+  const suggestions = suggestTemplates(person, today, { sex: sexFilter }).filter(
     (s) => !onlyNew || !existing.has(s.template.id),
   )
 
@@ -124,10 +140,24 @@ function NewCheckupPage() {
       <section className="space-y-3" aria-labelledby="templates-heading">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Subheading id="templates-heading">Vorlagen</Subheading>
-          <SwitchField>
-            <Label>Nur noch nicht angelegte</Label>
-            <Switch checked={onlyNew} onChange={setOnlyNew} />
-          </SwitchField>
+          <div className="flex flex-wrap items-center gap-4">
+            <Select
+              aria-label="Geschlecht"
+              className="w-44"
+              value={sexFilter}
+              onChange={(event) => setSexFilter(sexFilterFrom(event.target.value))}
+            >
+              {SEX_FILTER_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+            <SwitchField>
+              <Label>Nur noch nicht angelegte</Label>
+              <Switch checked={onlyNew} onChange={setOnlyNew} />
+            </SwitchField>
+          </div>
         </div>
         {!person.birthDate && (
           <Text>
@@ -169,7 +199,7 @@ function TemplateRow({
   added: boolean
   onPick: () => void
 }) {
-  const { template, sexUnknown } = suggestion
+  const { template, sexUnfiltered } = suggestion
   return (
     <li>
       <button
@@ -188,7 +218,7 @@ function TemplateRow({
         <span className="block text-sm/6 text-zinc-600 dark:text-zinc-400">
           {template.specialty}
           {template.hint && ` · ${template.hint}`}
-          {sexUnknown && ` · nur für ${template.sex === 'w' ? 'Frauen' : 'Männer'}`}
+          {sexUnfiltered && ` · nur für ${template.sex === 'w' ? 'Frauen' : 'Männer'}`}
         </span>
       </button>
     </li>
