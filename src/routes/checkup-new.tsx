@@ -3,7 +3,9 @@ import { useState } from 'react'
 import { Card } from '@/components/card'
 import { Badge } from '@/components/catalyst/badge'
 import { Button } from '@/components/catalyst/button'
+import { Label } from '@/components/catalyst/fieldset'
 import { Heading, Subheading } from '@/components/catalyst/heading'
+import { Switch, SwitchField } from '@/components/catalyst/switch'
 import { Text } from '@/components/catalyst/text'
 import { CheckupForm } from '@/components/checkup-form'
 import { Page } from '@/components/page'
@@ -36,6 +38,7 @@ function NewCheckupPage() {
   const doc = useDoc()
   const navigate = useNavigate()
   const [draft, setDraft] = useState<{ checkup: Checkup; template?: Template } | null>(null)
+  const [onlyNew, setOnlyNew] = useState(true)
   const person = doc.persons.find((p) => p.id === personId)
   if (!person) return <PersonNotFound />
 
@@ -79,9 +82,11 @@ function NewCheckupPage() {
     )
   }
 
-  const suggestions = suggestTemplates(person, today)
   const existing = new Set(
     doc.checkups.filter((c) => c.personId === personId).map((c) => c.templateId),
+  )
+  const suggestions = suggestTemplates(person, today).filter(
+    (s) => !onlyNew || !existing.has(s.template.id),
   )
 
   return (
@@ -117,13 +122,20 @@ function NewCheckupPage() {
       </Card>
 
       <section className="space-y-3" aria-labelledby="templates-heading">
-        <Subheading id="templates-heading">Vorlagen</Subheading>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Subheading id="templates-heading">Vorlagen</Subheading>
+          <SwitchField>
+            <Label>Nur noch nicht angelegte</Label>
+            <Switch checked={onlyNew} onChange={setOnlyNew} />
+          </SwitchField>
+        </div>
         {!person.birthDate && (
           <Text>
             Ohne Geburtsdatum zeigen wir alle Altersgruppen. Trag es bei der Person ein, dann wird
             die Liste kürzer.
           </Text>
         )}
+        {suggestions.length === 0 && <Text>Alle passenden Vorlagen sind schon angelegt.</Text>}
         <ul className="divide-y divide-zinc-950/5 overflow-hidden rounded-xl bg-white ring-1 ring-zinc-950/5 dark:divide-white/10 dark:bg-zinc-900 dark:ring-white/10">
           {suggestions.map((suggestion) => (
             <TemplateRow
