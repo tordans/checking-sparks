@@ -18,7 +18,7 @@ all-inkl webspace (folder name as KAS creates it, e.g. check.ingsparks.de/; call
     logs/                       api.log (not public, .htaccess denies all)
     public/                     document root of check.ingsparks.de
       .htaccess  index.html  assets/  sw.js  manifest.webmanifest  pwa-icons/  api/index.php
-  cron (KAS)                    every 15 min: GET /api/push/run?key=<cronKey>
+  cron (KAS)                    hourly: GET /api/push/run?key=<cronKey>
 ```
 
 The server never sees health data in clear text: the family document is encrypted in the browser
@@ -50,7 +50,7 @@ Do these once, in this order.
    `FTP_PASSWORD`. Use a long random password just for this user.
 6. **Cron job.** After the first successful deploy (the key must be in `config.php`):
    KAS > Tools > Cronjobs > new: URL `https://check.ingsparks.de/api/push/run?key=<cronKey>`,
-   every 15 minutes. Reminders go out at the first run after their time, so the delay is at most
+   hourly (every 15 minutes is also fine). Reminders go out at the first run after their time, so the delay is at most
    the interval. The key travels in the query string and shows up in the web server access log;
    that is acceptable because it can only trigger sending of already due reminders. Never reuse the
    family key for it.
