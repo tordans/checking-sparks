@@ -44,7 +44,6 @@ export interface StoreSnapshot {
   doc: FamilyDoc
   connection: Connection
   server: { familyKey: string; keyRemembered: boolean } | null
-  dirty: boolean
 }
 
 export type KeyValueStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
@@ -109,7 +108,6 @@ export function createDocStore(storage: KeyValueStorage) {
       doc,
       connection,
       server: server ? { familyKey: server.familyKey, keyRemembered: server.keyRemembered } : null,
-      dirty: meta.dirty,
     }
   }
 

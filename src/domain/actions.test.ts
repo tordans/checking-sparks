@@ -118,7 +118,7 @@ describe('check-ups', () => {
       {
         personId: 'p1',
         title: 'Grippe',
-        schedule: { kind: 'seasonal', startMonth: 10, endMonth: 12, everyYears: 1 },
+        schedule: { kind: 'seasonal', startMonth: 10, endMonth: 12 },
         windowMonths: 2,
         bookingLeadWeeks: 4,
       },

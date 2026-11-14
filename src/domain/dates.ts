@@ -1,7 +1,6 @@
 import {
   addDays as fnsAddDays,
   addMonths as fnsAddMonths,
-  differenceInCalendarDays,
   differenceInMonths,
   format,
   lastDayOfMonth,
@@ -55,11 +54,6 @@ export function compareDates(a: string, b: string): number {
 
 export function maxDate(a: string, b: string): string {
   return compareDates(a, b) >= 0 ? a : b
-}
-
-/** Whole calendar days from `from` to `to` (negative when `to` is earlier). */
-export function daysBetween(from: string, to: string): number {
-  return differenceInCalendarDays(parseDate(to), parseDate(from))
 }
 
 /** Completed months from `from` to `to`, e.g. age in months for a birth date. */

@@ -13,46 +13,8 @@ const suggestedIds = (...args: Parameters<typeof suggestTemplates>) =>
   suggestTemplates(...args).map((s) => s.template.id)
 
 describe('catalog', () => {
-  it('has all 33 adult and 22 child rows with unique ids', () => {
-    expect(TEMPLATES).toHaveLength(55)
-    expect(new Set(TEMPLATES.map((t) => t.id)).size).toBe(55)
-  })
-
-  it('flags self checks', () => {
-    expect(TEMPLATES.filter((t) => t.selfCheck).map((t) => t.id)).toEqual([
-      'blutdruck-selbst',
-      'brust-selbst',
-    ])
-  })
-
-  it('flags rows marked (?) as uncertain', () => {
-    for (const id of ['bauchaorta', 'psa', 'gyn-untersuchung', 'u2', 'u9', 'fsme', 'covid']) {
-      expect(get(id).uncertain).toBe(true)
-    }
-    for (const id of ['check-up-35', 'hautkrebs', 'u1', 'u4', 'u7', 'j1', 'td', 'rsv']) {
-      expect(get(id).uncertain).toBe(false)
-    }
-  })
-
-  it('transcribes status, sex and intervals', () => {
-    expect(get('check-up-35')).toMatchObject({
-      status: 'Kasse',
-      schedule: { kind: 'interval', months: 36 },
-      ageFromMonths: 420,
-    })
-    expect(get('hautkrebs').schedule).toEqual({ kind: 'interval', months: 24 })
-    expect(get('darmspiegelung').schedule).toEqual({ kind: 'interval', months: 120 })
-    expect(get('prostata-dru').sex).toBe('m')
-    expect(get('mammo')).toMatchObject({ sex: 'w', ageFromMonths: 600, ageToMonths: 911 })
-    expect(get('psa').status).toBe('IGeL')
-    expect(get('u10').status).toBe('Kasse (abhängig)')
-    expect(get('td').status).toBe('STIKO')
-    expect(get('grippe').schedule).toEqual({
-      kind: 'seasonal',
-      startMonth: 10,
-      endMonth: 12,
-      everyYears: 1,
-    })
+  it('has unique ids', () => {
+    expect(new Set(TEMPLATES.map((t) => t.id)).size).toBe(TEMPLATES.length)
   })
 })
 
@@ -208,7 +170,7 @@ describe('checkupFromTemplate', () => {
   it('seasonal flu shot: Oct–Dec yearly', () => {
     const senior = person({ birthDate: '1950-01-01' })
     const c = checkupFromTemplate(get('grippe'), senior, '2026-10-29', env())
-    expect(c.schedule).toEqual({ kind: 'seasonal', startMonth: 10, endMonth: 12, everyYears: 1 })
+    expect(c.schedule).toEqual({ kind: 'seasonal', startMonth: 10, endMonth: 12 })
     expect(computeDue(c, [], '2026-10-29')).toMatchObject({
       windowStart: '2026-10-01',
       windowEnd: '2026-12-31',

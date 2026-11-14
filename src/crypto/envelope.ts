@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import * as z from 'zod/mini'
 
 /** PBKDF2 iteration count used for new families (see docs/architecture.md, "Encryption"). */
 export const DEFAULT_ITERATIONS = 600_000
@@ -20,7 +20,7 @@ export const envelopeSchema = z.object({
   kdf: z.object({
     name: z.literal('PBKDF2'),
     hash: z.literal('SHA-256'),
-    iterations: z.number().int().min(MIN_ITERATIONS).max(MAX_ITERATIONS),
+    iterations: z.int().check(z.minimum(MIN_ITERATIONS), z.maximum(MAX_ITERATIONS)),
     salt: z.base64(),
   }),
   cipher: z.object({

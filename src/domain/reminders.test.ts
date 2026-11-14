@@ -200,7 +200,7 @@ describe('horizon, scope', () => {
         checkup({
           id: 'flu',
           title: 'Grippeimpfung',
-          schedule: { kind: 'seasonal', startMonth: 10, endMonth: 12, everyYears: 1 },
+          schedule: { kind: 'seasonal', startMonth: 10, endMonth: 12 },
         }),
       ],
     })

@@ -80,7 +80,7 @@ function seasonalWindow(
   today: string,
 ): Window {
   if (anchor) {
-    return seasonWindow(schedule, seasonYearOf(schedule, anchor) + schedule.everyYears)
+    return seasonWindow(schedule, seasonYearOf(schedule, anchor) + 1)
   }
   // No history: the current season if it is still running, otherwise the next one.
   let year = yearOf(today) - 1

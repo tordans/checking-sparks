@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import {
-  currentDeviceLabel,
   currentSubscription,
   describePushError,
   disablePush,
@@ -13,7 +12,6 @@ import { createApiClient } from '@/sync/api-client'
 import { useConnection, useServerConfig } from '@/sync/store'
 import { Button } from './catalyst/button'
 import { Description, Field, Label } from './catalyst/fieldset'
-import { Input } from './catalyst/input'
 import { Strong, Text } from './catalyst/text'
 
 type DeviceState =
@@ -36,12 +34,20 @@ async function readDeviceState(): Promise<DeviceState> {
 
 type Message = { tone: 'info' | 'error'; text: string }
 
+function Hint({ children }: { children: React.ReactNode }) {
+  return (
+    <Field>
+      <Label>Benachrichtigungen</Label>
+      <Description>{children}</Description>
+    </Field>
+  )
+}
+
 /** Push notifications of this device (docs/architecture.md, "PWA and push"). */
 export function PushSettings() {
   const server = useServerConfig()
   const connection = useConnection()
   const [device, setDevice] = useState<DeviceState>({ kind: 'loading' })
-  const [label, setLabel] = useState(currentDeviceLabel)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<Message | null>(null)
 
@@ -59,13 +65,10 @@ export function PushSettings() {
 
   if (!server) {
     return (
-      <Field>
-        <Label>Benachrichtigungen</Label>
-        <Description>
-          Erinnerungen kommen vom Server. Verbinde dieses Gerät zuerst unter „Synchronisieren“, dann
-          kannst du hier Benachrichtigungen aktivieren.
-        </Description>
-      </Field>
+      <Hint>
+        Erinnerungen kommen vom Server. Verbinde dieses Gerät zuerst unter „Synchronisieren“, dann
+        kannst du hier Benachrichtigungen aktivieren.
+      </Hint>
     )
   }
 
@@ -75,25 +78,19 @@ export function PushSettings() {
 
   if (device.support === 'ios-not-installed') {
     return (
-      <Field>
-        <Label>Benachrichtigungen</Label>
-        <Description>
-          Auf dem iPhone: Teilen → Zum Home-Bildschirm, dann hier aktivieren. Das geht nur in der
-          App vom Home-Bildschirm, nicht in Safari.
-        </Description>
-      </Field>
+      <Hint>
+        Auf dem iPhone: Teilen → Zum Home-Bildschirm, dann hier aktivieren. Das geht nur in der App
+        vom Home-Bildschirm, nicht in Safari.
+      </Hint>
     )
   }
 
   if (device.support === 'unsupported') {
     return (
-      <Field>
-        <Label>Benachrichtigungen</Label>
-        <Description>
-          Dieser Browser unterstützt keine Benachrichtigungen. Auf Android und am Computer geht es
-          mit Chrome, Edge und Firefox, auf dem iPhone mit der App vom Home-Bildschirm.
-        </Description>
-      </Field>
+      <Hint>
+        Dieser Browser unterstützt keine Benachrichtigungen. Auf Android und am Computer geht es mit
+        Chrome, Edge und Firefox, auf dem iPhone mit der App vom Home-Bildschirm.
+      </Hint>
     )
   }
 
@@ -113,56 +110,30 @@ export function PushSettings() {
   const api = createApiClient({ familyKey: server.familyKey })
 
   const enable = () =>
-    run(async () => {
-      const result = await enablePush(api, label)
-      if (result.ok) return { tone: 'info', text: 'Benachrichtigungen sind aktiv.' }
-      switch (result.reason) {
-        case 'denied':
-          return {
+    run(async () =>
+      (await enablePush(api))
+        ? null
+        : {
             tone: 'error',
-            text: 'Benachrichtigungen sind blockiert. Erlaube sie in den Einstellungen des Browsers für diese Seite.',
-          }
-        case 'dismissed':
-          return {
-            tone: 'info',
-            text: 'Du hast die Anfrage geschlossen. Es wurde nichts aktiviert.',
-          }
-        case 'no-service-worker':
-          return {
-            tone: 'error',
-            text: 'Der Hintergrunddienst ist nicht aktiv. Das gibt es nur in der installierten bzw. veröffentlichten Version der App.',
-          }
-      }
-    })
+            text: 'Benachrichtigungen wurden nicht aktiviert. Erlaube sie in den Einstellungen des Browsers für diese Seite und versuche es erneut.',
+          },
+    )
 
   const test = () =>
     run(async () => {
-      const result = await api.testPush()
-      if (result.sent > 0) {
-        return {
-          tone: 'info',
-          text: `Test gesendet an ${result.sent === 1 ? '1 Gerät' : `${result.sent} Geräte`}. Er sollte gleich erscheinen.`,
-        }
-      }
-      if (result.removed > 0) {
-        return {
-          tone: 'error',
-          text: 'Der Push-Dienst kennt dieses Gerät nicht mehr. Deaktiviere die Benachrichtigungen und aktiviere sie erneut.',
-        }
-      }
-      return {
-        tone: 'error',
-        text:
-          result.failed > 0
-            ? 'Der Push-Dienst hat den Test nicht angenommen. Versuche es gleich noch einmal.'
-            : 'Es ist kein Gerät angemeldet.',
-      }
+      const { sent } = await api.testPush()
+      return sent > 0
+        ? { tone: 'info', text: 'Test gesendet. Er sollte gleich erscheinen.' }
+        : {
+            tone: 'error',
+            text: 'Der Test ist nicht angekommen. Deaktiviere die Benachrichtigungen und aktiviere sie erneut.',
+          }
     })
 
   const disable = () =>
     run(async () => {
       await disablePush(api)
-      return { tone: 'info', text: 'Benachrichtigungen sind auf diesem Gerät aus.' }
+      return null
     })
 
   return (
@@ -183,29 +154,12 @@ export function PushSettings() {
         </>
       ) : (
         <>
-          {device.permission === 'denied' ? (
-            <Text>
-              Benachrichtigungen sind für diese Seite blockiert. Erlaube sie in den Einstellungen
-              des Browsers und lade die Seite neu.
-            </Text>
-          ) : (
-            <Field>
-              <Label>Name dieses Geräts</Label>
-              <Description>
-                Der Server erinnert dich ans Buchen und Bestätigen, auch wenn die App zu ist. Mit
-                dem Namen erkennst du dieses Gerät wieder.
-              </Description>
-              <Input
-                value={label}
-                maxLength={100}
-                onChange={(event) => setLabel(event.target.value)}
-              />
-            </Field>
-          )}
-          <Button
-            disabled={busy || device.permission === 'denied' || label.trim() === ''}
-            onClick={() => void enable()}
-          >
+          <Text>
+            {device.permission === 'denied'
+              ? 'Benachrichtigungen sind für diese Seite blockiert. Erlaube sie in den Einstellungen des Browsers und lade die Seite neu.'
+              : 'Der Server erinnert dich ans Buchen und Bestätigen, auch wenn die App zu ist.'}
+          </Text>
+          <Button disabled={busy || device.permission === 'denied'} onClick={() => void enable()}>
             Benachrichtigungen aktivieren
           </Button>
         </>

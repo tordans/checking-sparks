@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import * as z from 'zod/mini'
 import { type Envelope, envelopeSchema } from '../crypto/envelope'
 import type { Reminder } from '../domain/reminders'
 
@@ -19,31 +19,19 @@ export type PutDocResult = { ok: true; version: number } | { ok: false; conflict
 export type PushSubscriptionInput = {
   endpoint: string
   keys: { p256dh: string; auth: string }
-  label: string
 }
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
 
-const versionSchema = z.number().int().nonnegative()
-
-const healthSchema = z.object({ ok: z.literal(true), commit: z.string() })
-const docSchema = z.object({ version: versionSchema, envelope: envelopeSchema })
-const putDocSchema = z.object({ version: versionSchema })
-const remindersSchema = z.object({ count: z.number().int().nonnegative() })
-const vapidKeySchema = z.object({ key: z.string().min(1) })
-const testPushSchema = z.object({
-  sent: z.number().int().nonnegative(),
-  failed: z.number().int().nonnegative(),
-  removed: z.number().int().nonnegative(),
+/** Server documents (also the 409 conflict body) are checked fully: they decide what gets decrypted. */
+const docSchema = z.object({
+  version: z.int().check(z.nonnegative()),
+  envelope: envelopeSchema,
 })
-
-export type TestPushResult = z.infer<typeof testPushSchema>
 
 type CallOptions = {
   body?: unknown
   headers?: Record<string, string>
-  /** Only `health` is public; every other endpoint needs the family key. */
-  auth?: boolean
 }
 
 export function createApiClient({
@@ -59,9 +47,7 @@ export function createApiClient({
 
   function call(method: string, path: string, options: CallOptions = {}): Promise<Response> {
     const headers = new Headers(options.headers)
-    if (options.auth !== false) {
-      headers.set('Authorization', `Bearer ${familyKey}`)
-    }
+    headers.set('Authorization', `Bearer ${familyKey}`)
     let body: string | undefined
     if (options.body !== undefined) {
       headers.set('Content-Type', 'application/json')
@@ -71,13 +57,6 @@ export function createApiClient({
   }
 
   return {
-    async health(): Promise<{ ok: true; commit: string }> {
-      const label = 'GET /api/health'
-      const response = await call('GET', '/api/health', { auth: false })
-      assertOk(response, label)
-      return readJson(response, label, healthSchema)
-    },
-
     /** Returns `null` when no document exists yet (404). */
     async getDoc(): Promise<DocResponse | null> {
       const label = 'GET /api/doc'
@@ -86,7 +65,7 @@ export function createApiClient({
         return null
       }
       assertOk(response, label)
-      return readJson(response, label, docSchema)
+      return readDoc(response, label)
     },
 
     /**
@@ -102,35 +81,30 @@ export function createApiClient({
         headers: precondition,
       })
       if (response.status === 409) {
-        return { ok: false, conflict: await readJson(response, label, docSchema) }
+        return { ok: false, conflict: await readDoc(response, label) }
       }
       assertOk(response, label)
-      const result = await readJson(response, label, putDocSchema)
-      return { ok: true, version: result.version }
+      const { version: created } = await readObject(response, label)
+      if (typeof created !== 'number') throw unexpected(response, label)
+      return { ok: true, version: created }
     },
 
-    async putReminders(reminders: Reminder[]): Promise<{ count: number }> {
-      const label = 'PUT /api/reminders'
+    async putReminders(reminders: Reminder[]): Promise<void> {
       const response = await call('PUT', '/api/reminders', { body: { reminders } })
-      assertOk(response, label)
-      return readJson(response, label, remindersSchema)
+      assertOk(response, 'PUT /api/reminders')
     },
 
     async getVapidPublicKey(): Promise<{ key: string }> {
       const label = 'GET /api/push/vapid-public-key'
       const response = await call('GET', '/api/push/vapid-public-key')
       assertOk(response, label)
-      return readJson(response, label, vapidKeySchema)
+      const { key } = await readObject(response, label)
+      if (typeof key !== 'string' || key === '') throw unexpected(response, label)
+      return { key }
     },
 
-    async subscribe(subscription: PushSubscriptionInput): Promise<void> {
-      const response = await call('POST', '/api/push/subscriptions', {
-        body: {
-          endpoint: subscription.endpoint,
-          keys: subscription.keys,
-          label: subscription.label,
-        },
-      })
+    async subscribe({ endpoint, keys }: PushSubscriptionInput): Promise<void> {
+      const response = await call('POST', '/api/push/subscriptions', { body: { endpoint, keys } })
       assertOk(response, 'POST /api/push/subscriptions')
     },
 
@@ -139,12 +113,14 @@ export function createApiClient({
       assertOk(response, 'DELETE /api/push/subscriptions')
     },
 
-    /** Sends a test notification to every subscribed device. */
-    async testPush(): Promise<TestPushResult> {
+    /** Sends a test notification to every subscribed device; returns how many were reached. */
+    async testPush(): Promise<{ sent: number }> {
       const label = 'POST /api/push/test'
       const response = await call('POST', '/api/push/test')
       assertOk(response, label)
-      return readJson(response, label, testPushSchema)
+      const { sent } = await readObject(response, label)
+      if (typeof sent !== 'number') throw unexpected(response, label)
+      return { sent }
     },
   }
 }
@@ -157,16 +133,23 @@ function assertOk(response: Response, label: string): void {
   }
 }
 
-async function readJson<T>(response: Response, label: string, schema: z.ZodType<T>): Promise<T> {
+function unexpected(response: Response, label: string): ApiError {
+  return new ApiError(response.status, `${label}: unexpected response`)
+}
+
+async function readObject(response: Response, label: string): Promise<Record<string, unknown>> {
   let json: unknown
   try {
     json = await response.json()
   } catch {
     throw new ApiError(response.status, `${label}: response is not valid JSON`)
   }
-  const result = schema.safeParse(json)
-  if (!result.success) {
-    throw new ApiError(response.status, `${label}: unexpected response shape`)
-  }
+  if (typeof json !== 'object' || json === null) throw unexpected(response, label)
+  return json as Record<string, unknown>
+}
+
+async function readDoc(response: Response, label: string): Promise<DocResponse> {
+  const result = z.safeParse(docSchema, await readObject(response, label))
+  if (!result.success) throw unexpected(response, label)
   return result.data
 }

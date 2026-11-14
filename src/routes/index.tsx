@@ -82,6 +82,7 @@ function Home() {
 
 function DueCard({ due, today }: { due: DocDue; today: string }) {
   const { person, checkup } = due
+  const navigate = useNavigate()
   return (
     <Card className="space-y-3">
       <div>
@@ -106,7 +107,17 @@ function DueCard({ due, today }: { due: DocDue; today: string }) {
           )}
         </p>
       </div>
-      <DueActions checkup={checkup} due={due} />
+      <DueActions
+        checkup={checkup}
+        due={due}
+        onDone={() =>
+          void navigate({
+            to: '/person/$personId/vorsorge/$checkupId',
+            params: { personId: person.id, checkupId: checkup.id },
+            search: { action: 'done' },
+          })
+        }
+      />
     </Card>
   )
 }

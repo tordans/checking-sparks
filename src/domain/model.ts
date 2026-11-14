@@ -1,74 +1,70 @@
-import { z } from 'zod'
+import * as z from 'zod/mini'
 import { isValidDateString } from './dates'
 
 /** Local calendar date `YYYY-MM-DD`. */
-const DateString = z.string().refine(isValidDateString, 'Expected a date as YYYY-MM-DD')
+const DateString = z.string().check(z.refine(isValidDateString, 'Expected a date as YYYY-MM-DD'))
 /** ISO timestamp, set on every change. */
 const Timestamp = z.iso.datetime({ offset: true })
-const Month = z.number().int().min(1).max(12)
+const NonEmpty = z.string().check(z.minLength(1))
+const Month = z.int().check(z.minimum(1), z.maximum(12))
 
 const SexSchema = z.enum(['m', 'w', 'd'])
 
 const PersonSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  birthDate: DateString.optional(),
-  sex: SexSchema.optional(),
-  color: z.string().optional(),
+  id: NonEmpty,
+  name: NonEmpty,
+  birthDate: z.optional(DateString),
+  sex: z.optional(SexSchema),
+  color: z.optional(z.string()),
   updatedAt: Timestamp,
 })
 
 const ScheduleSchema = z.discriminatedUnion('kind', [
   // Earliest again N months after the last done occurrence.
-  z.object({ kind: z.literal('interval'), months: z.number().int().min(1) }),
-  // Recurring season, may wrap the year end (e.g. Nov–Feb).
-  z.object({
-    kind: z.literal('seasonal'),
-    startMonth: Month,
-    endMonth: Month,
-    everyYears: z.number().int().min(1),
-  }),
+  z.object({ kind: z.literal('interval'), months: z.int().check(z.minimum(1)) }),
+  // Recurring season every year, may wrap the year end (e.g. Nov–Feb).
+  z.object({ kind: z.literal('seasonal'), startMonth: Month, endMonth: Month }),
   // One fixed window, e.g. a U-exam derived from the birth date.
   z.object({ kind: z.literal('once'), windowStart: DateString, windowEnd: DateString }),
 ])
 
 const CheckupSchema = z.object({
-  id: z.string().min(1),
-  personId: z.string().min(1),
-  title: z.string().min(1),
-  templateId: z.string().optional(),
-  practice: z.string().optional(),
-  phone: z.string().optional(),
-  note: z.string().optional(),
+  id: NonEmpty,
+  personId: NonEmpty,
+  title: NonEmpty,
+  templateId: z.optional(z.string()),
+  practice: z.optional(z.string()),
+  phone: z.optional(z.string()),
+  note: z.optional(z.string()),
   schedule: ScheduleSchema,
   /** Length of the execution window for 'interval'. */
-  windowMonths: z.number().int().min(1).default(3),
+  windowMonths: z._default(z.int().check(z.minimum(1)), 3),
   /** The booking window opens this many weeks before the execution window. */
-  bookingLeadWeeks: z.number().int().min(0).default(6),
+  bookingLeadWeeks: z._default(z.int().check(z.minimum(0)), 6),
   /** 'interval' without history: when the first window starts. */
-  firstWindowStart: DateString.optional(),
-  active: z.boolean().default(true),
+  firstWindowStart: z.optional(DateString),
+  active: z._default(z.boolean(), true),
   updatedAt: Timestamp,
 })
 
 const OccurrenceStatusSchema = z.enum(['booked', 'done', 'skipped'])
 
 const OccurrenceSchema = z.object({
-  id: z.string().min(1),
-  checkupId: z.string().min(1),
+  id: NonEmpty,
+  checkupId: NonEmpty,
   /** Identifies which due window this occurrence belongs to. */
   windowStart: DateString,
   status: OccurrenceStatusSchema,
-  appointmentDate: DateString.optional(),
-  doneDate: DateString.optional(),
-  skipReason: z.string().optional(),
+  appointmentDate: z.optional(DateString),
+  doneDate: z.optional(DateString),
+  skipReason: z.optional(z.string()),
   updatedAt: Timestamp,
 })
 
-const TombstoneSchema = z.object({ id: z.string().min(1), deletedAt: Timestamp })
+const TombstoneSchema = z.object({ id: NonEmpty, deletedAt: Timestamp })
 
 const SettingsSchema = z.object({
-  reminderHour: z.number().int().min(0).max(23).default(9),
+  reminderHour: z._default(z.int().check(z.minimum(0), z.maximum(23)), 9),
   updatedAt: Timestamp,
 })
 
@@ -103,12 +99,10 @@ export function emptyDoc(): FamilyDoc {
   }
 }
 
-/** Upgrades older documents to the current version. Only v1 exists so far (identity). */
-export function migrateDoc(raw: unknown): unknown {
-  return raw
-}
-
-/** Migrates, then validates. Returns Zod's safeParse result. */
+/**
+ * Validates a document. Unknown fields (e.g. the removed `everyYears`) are stripped.
+ * Returns Zod's safeParse result. A future schemaVersion 2 would migrate here first.
+ */
 export function parseDoc(raw: unknown) {
-  return FamilyDocSchema.safeParse(migrateDoc(raw))
+  return FamilyDocSchema.safeParse(raw)
 }

@@ -41,7 +41,7 @@ export function CheckupForm({
 
   function set<K extends keyof CheckupFormValues>(key: K, value: CheckupFormValues[K]) {
     setValues((v) => ({ ...v, [key]: value }))
-    setErrors(({ [key]: _cleared, ...rest }) => rest)
+    setErrors((e) => ({ ...e, [key]: undefined }))
   }
 
   function text(
@@ -138,29 +138,26 @@ export function CheckupForm({
           )}
 
           {values.kind === 'seasonal' && (
-            <>
-              <div className="grid grid-cols-2 gap-4">
-                <Field>
-                  <Label>Von</Label>
-                  <Select
-                    value={values.startMonth}
-                    onChange={(event) => set('startMonth', event.target.value)}
-                  >
-                    {monthOptions}
-                  </Select>
-                </Field>
-                <Field>
-                  <Label>Bis</Label>
-                  <Select
-                    value={values.endMonth}
-                    onChange={(event) => set('endMonth', event.target.value)}
-                  >
-                    {monthOptions}
-                  </Select>
-                </Field>
-              </div>
-              {text('everyYears', 'Alle … Jahre', { type: 'number', inputMode: 'numeric', min: 1 })}
-            </>
+            <div className="grid grid-cols-2 gap-4">
+              <Field>
+                <Label>Von</Label>
+                <Select
+                  value={values.startMonth}
+                  onChange={(event) => set('startMonth', event.target.value)}
+                >
+                  {monthOptions}
+                </Select>
+              </Field>
+              <Field>
+                <Label>Bis</Label>
+                <Select
+                  value={values.endMonth}
+                  onChange={(event) => set('endMonth', event.target.value)}
+                >
+                  {monthOptions}
+                </Select>
+              </Field>
+            </div>
           )}
 
           {values.kind === 'once' && (

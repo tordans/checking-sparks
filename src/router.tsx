@@ -1,5 +1,4 @@
 import { createRouter } from '@tanstack/react-router'
-import { routerSearch } from '@/lib/router-search'
 import { checkupDetailRoute } from '@/routes/checkup-detail'
 import { checkupNewRoute } from '@/routes/checkup-new'
 import { indexRoute } from '@/routes/index'
@@ -21,8 +20,6 @@ export const router = createRouter({
   routeTree,
   basepath: import.meta.env.BASE_URL,
   trailingSlash: 'never',
-  parseSearch: routerSearch.parse,
-  stringifySearch: routerSearch.stringify,
   scrollRestoration: true,
 })
 

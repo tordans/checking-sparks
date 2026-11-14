@@ -1,11 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { ApiError } from '@/sync/api-client'
 import {
-  defaultDeviceLabel,
   describePushError,
   isIos,
   pushSupport,
-  sameKey,
   toSubscriptionInput,
   urlBase64ToUint8Array,
 } from './subscribe'
@@ -55,28 +53,6 @@ describe('pushSupport', () => {
   })
 })
 
-describe('defaultDeviceLabel', () => {
-  it('uses userAgentData when present', () => {
-    expect(
-      defaultDeviceLabel({
-        userAgent: '',
-        brands: ['Not A;Brand', 'Chromium', 'Google Chrome'],
-        platform: 'macOS',
-      }),
-    ).toBe('Chrome auf Mac')
-  })
-
-  it('falls back to the user agent', () => {
-    expect(defaultDeviceLabel({ userAgent: IPHONE_UA })).toBe('Safari auf iPhone')
-    expect(
-      defaultDeviceLabel({
-        userAgent: 'Mozilla/5.0 (Android 15; Mobile; rv:130.0) Gecko/130.0 Firefox/130.0',
-      }),
-    ).toBe('Firefox auf Android')
-    expect(defaultDeviceLabel({ userAgent: 'curl/8' })).toBe('Dieses Gerät')
-  })
-})
-
 describe('urlBase64ToUint8Array', () => {
   it('decodes URL-safe base64 without padding', () => {
     // 0xfb 0xff 0xfe is "-__-" in url-safe base64
@@ -92,33 +68,20 @@ describe('urlBase64ToUint8Array', () => {
   })
 })
 
-describe('sameKey', () => {
-  it('compares bytes', () => {
-    const expected = new Uint8Array([1, 2, 3])
-    expect(sameKey(new Uint8Array([1, 2, 3]).buffer, expected)).toBe(true)
-    expect(sameKey(new Uint8Array([1, 2, 4]).buffer, expected)).toBe(false)
-    expect(sameKey(new Uint8Array([1, 2]).buffer, expected)).toBe(false)
-    expect(sameKey(null, expected)).toBe(false)
-  })
-})
-
 describe('toSubscriptionInput', () => {
-  it('takes endpoint and keys and trims the label', () => {
+  it('takes endpoint and keys only', () => {
     expect(
-      toSubscriptionInput(
-        { endpoint: 'https://push.example/abc', keys: { p256dh: 'P', auth: 'A' } },
-        '  Lenas Handy ',
-      ),
-    ).toEqual({
-      endpoint: 'https://push.example/abc',
-      keys: { p256dh: 'P', auth: 'A' },
-      label: 'Lenas Handy',
-    })
+      toSubscriptionInput({
+        endpoint: 'https://push.example/abc',
+        keys: { p256dh: 'P', auth: 'A' },
+        expirationTime: null,
+      }),
+    ).toEqual({ endpoint: 'https://push.example/abc', keys: { p256dh: 'P', auth: 'A' } })
   })
 
   it('rejects incomplete subscriptions', () => {
-    expect(() => toSubscriptionInput({ endpoint: 'https://push.example/abc' }, 'x')).toThrow()
-    expect(() => toSubscriptionInput({ keys: { p256dh: 'P', auth: 'A' } }, 'x')).toThrow()
+    expect(() => toSubscriptionInput({ endpoint: 'https://push.example/abc' })).toThrow()
+    expect(() => toSubscriptionInput({ keys: { p256dh: 'P', auth: 'A' } })).toThrow()
   })
 })
 

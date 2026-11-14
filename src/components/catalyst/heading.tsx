@@ -1,14 +1,8 @@
 import { twJoin as clsx } from 'tailwind-merge'
 
-type HeadingProps = { level?: 1 | 2 | 3 | 4 | 5 | 6 } & React.ComponentPropsWithoutRef<
-  'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'
->
-
-export function Heading({ className, level = 1, ...props }: HeadingProps) {
-  let Element: `h${typeof level}` = `h${level}`
-
+export function Heading({ className, ...props }: React.ComponentPropsWithoutRef<'h1'>) {
   return (
-    <Element
+    <h1
       {...props}
       className={clsx(
         className,
@@ -18,11 +12,9 @@ export function Heading({ className, level = 1, ...props }: HeadingProps) {
   )
 }
 
-export function Subheading({ className, level = 2, ...props }: HeadingProps) {
-  let Element: `h${typeof level}` = `h${level}`
-
+export function Subheading({ className, ...props }: React.ComponentPropsWithoutRef<'h2'>) {
   return (
-    <Element
+    <h2
       {...props}
       className={clsx(
         className,

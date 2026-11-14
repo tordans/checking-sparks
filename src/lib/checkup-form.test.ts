@@ -31,7 +31,6 @@ describe('checkup form values', () => {
       kind: 'seasonal',
       startMonth: 10,
       endMonth: 12,
-      everyYears: 1,
     })
     expect(result.ok && result.fields.firstWindowStart).toBeUndefined()
   })

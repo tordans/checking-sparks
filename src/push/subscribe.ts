@@ -1,4 +1,4 @@
-import type { ApiClient } from '@/sync/api-client'
+import type { ApiClient, PushSubscriptionInput } from '@/sync/api-client'
 import { ApiError } from '@/sync/api-client'
 
 /**
@@ -56,71 +56,6 @@ export function readPushEnvironment(): PushEnvironment {
   }
 }
 
-const MAX_LABEL_LENGTH = 100
-
-/** Browser and system for the editable device name, e.g. `Safari auf iPhone`. */
-export function defaultDeviceLabel({
-  userAgent,
-  brands = [],
-  platform,
-}: {
-  userAgent: string
-  /** `navigator.userAgentData.brands` names. */
-  brands?: string[]
-  /** `navigator.userAgentData.platform`. */
-  platform?: string
-}): string {
-  const system = systemName(platform) ?? systemFromUserAgent(userAgent)
-  const browser = browserFromBrands(brands) ?? browserFromUserAgent(userAgent)
-  const label = browser && system ? `${browser} auf ${system}` : (system ?? browser ?? '')
-  return (label || 'Dieses Gerät').slice(0, MAX_LABEL_LENGTH)
-}
-
-function systemName(platform: string | undefined): string | null {
-  if (!platform) return null
-  if (platform === 'macOS') return 'Mac'
-  return platform
-}
-
-function systemFromUserAgent(userAgent: string): string | null {
-  if (/iPhone/.test(userAgent)) return 'iPhone'
-  if (/iPad/.test(userAgent)) return 'iPad'
-  if (/Android/.test(userAgent)) return 'Android'
-  if (/Windows/.test(userAgent)) return 'Windows'
-  if (/CrOS/.test(userAgent)) return 'ChromeOS'
-  if (/Macintosh|Mac OS X/.test(userAgent)) return 'Mac'
-  if (/Linux/.test(userAgent)) return 'Linux'
-  return null
-}
-
-function browserFromBrands(brands: string[]): string | null {
-  const known = brands.find((brand) =>
-    /^(Microsoft Edge|Google Chrome|Opera|Brave|Vivaldi)$/.test(brand),
-  )
-  if (known) return known.replace('Microsoft ', '').replace('Google ', '')
-  return null
-}
-
-function browserFromUserAgent(userAgent: string): string | null {
-  if (/Edg\//.test(userAgent)) return 'Edge'
-  if (/OPR\//.test(userAgent)) return 'Opera'
-  if (/Firefox\/|FxiOS\//.test(userAgent)) return 'Firefox'
-  if (/Chrome\/|CriOS\//.test(userAgent)) return 'Chrome'
-  if (/Safari\//.test(userAgent)) return 'Safari'
-  return null
-}
-
-type UserAgentData = { brands?: { brand: string }[]; platform?: string }
-
-export function currentDeviceLabel(): string {
-  const data = (navigator as Navigator & { userAgentData?: UserAgentData }).userAgentData
-  return defaultDeviceLabel({
-    userAgent: navigator.userAgent,
-    brands: data?.brands?.map((entry) => entry.brand) ?? [],
-    ...(data?.platform ? { platform: data.platform } : {}),
-  })
-}
-
 /**
  * VAPID public keys are URL-safe base64 without padding; `pushManager.subscribe` wants bytes.
  */
@@ -132,17 +67,8 @@ export function urlBase64ToUint8Array(value: string): Uint8Array<ArrayBuffer> {
   return bytes
 }
 
-export function sameKey(existing: ArrayBuffer | null | undefined, expected: Uint8Array): boolean {
-  if (!existing || existing.byteLength !== expected.byteLength) return false
-  const bytes = new Uint8Array(existing)
-  return bytes.every((byte, index) => byte === expected[index])
-}
-
 /** The JSON form of a subscription, checked for what the server needs. */
-export function toSubscriptionInput(
-  json: PushSubscriptionJSON,
-  label: string,
-): { endpoint: string; keys: { p256dh: string; auth: string }; label: string } {
+export function toSubscriptionInput(json: PushSubscriptionJSON): PushSubscriptionInput {
   const { endpoint, keys } = json
   if (!endpoint || !keys?.['p256dh'] || !keys['auth']) {
     throw new Error('The browser returned an incomplete push subscription')
@@ -150,7 +76,6 @@ export function toSubscriptionInput(
   return {
     endpoint,
     keys: { p256dh: keys['p256dh'], auth: keys['auth'] },
-    label: label.trim().slice(0, MAX_LABEL_LENGTH),
   }
 }
 
@@ -173,10 +98,6 @@ export function describePushError(error: unknown): string {
 
 // --- Browser calls ----------------------------------------------------------------------------
 
-export type EnableResult =
-  | { ok: true }
-  | { ok: false; reason: 'denied' | 'dismissed' | 'no-service-worker' }
-
 async function activeRegistration(): Promise<ServiceWorkerRegistration | null> {
   const registration = await navigator.serviceWorker.getRegistration()
   if (!registration) return null
@@ -192,34 +113,26 @@ export async function currentSubscription(): Promise<PushSubscription | null> {
 
 /**
  * Must be called from a click: the permission prompt needs a user gesture (and iOS insists on it).
+ * Returns false when the user did not grant permission or there is no service worker.
  */
 export async function enablePush(
   api: Pick<ApiClient, 'getVapidPublicKey' | 'subscribe'>,
-  label: string,
-): Promise<EnableResult> {
-  const permission = await Notification.requestPermission()
-  if (permission === 'denied') return { ok: false, reason: 'denied' }
-  if (permission !== 'granted') return { ok: false, reason: 'dismissed' }
+): Promise<boolean> {
+  if ((await Notification.requestPermission()) !== 'granted') return false
 
   const registration = await activeRegistration()
-  if (!registration) return { ok: false, reason: 'no-service-worker' }
+  if (!registration) return false
 
   const { key } = await api.getVapidPublicKey()
-  const applicationServerKey = urlBase64ToUint8Array(key)
+  const subscription =
+    (await registration.pushManager.getSubscription()) ??
+    (await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(key),
+    }))
 
-  let subscription = await registration.pushManager.getSubscription()
-  // A subscription is bound to one VAPID key; after a key change it has to be replaced.
-  if (subscription && !sameKey(subscription.options.applicationServerKey, applicationServerKey)) {
-    await subscription.unsubscribe()
-    subscription = null
-  }
-  subscription ??= await registration.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey,
-  })
-
-  await api.subscribe(toSubscriptionInput(subscription.toJSON(), label))
-  return { ok: true }
+  await api.subscribe(toSubscriptionInput(subscription.toJSON()))
+  return true
 }
 
 /** Removes the subscription from this device and, if reachable, from the server. */

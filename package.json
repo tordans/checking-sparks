@@ -44,7 +44,7 @@
     "bun-types": "^1.4.0",
     "eslint-plugin-compat": "^7.0.2",
     "knip": "^6.33.0",
-    "oxc-transform-react": "^0.147.0",
+    "oxc-transform-react": "^0.152.0",
     "oxfmt": "^0.65.0",
     "oxlint": "^1.80.0",
     "oxlint-tsgolint": "^7.0.2001",

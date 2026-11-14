@@ -16,7 +16,7 @@ type AgeOffset = { days: number } | { months: number }
 
 type TemplateSchedule =
   | { kind: 'interval'; months: number }
-  | { kind: 'seasonal'; startMonth: number; endMonth: number; everyYears: number }
+  | { kind: 'seasonal'; startMonth: number; endMonth: number }
   /** Fixed window relative to the birth date; both ends inclusive. */
   | { kind: 'once'; from: AgeOffset; to: AgeOffset }
   /** No recurrence in the source (single doses, IGeL, self checks). */
@@ -50,7 +50,6 @@ const seasonal = (startMonth: number, endMonth: number): TemplateSchedule => ({
   kind: 'seasonal',
   startMonth,
   endMonth,
-  everyYears: 1,
 })
 const NONE: TemplateSchedule = { kind: 'none' }
 const onceDays = (from: number, to: number): TemplateSchedule => ({

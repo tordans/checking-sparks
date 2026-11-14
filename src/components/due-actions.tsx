@@ -17,33 +17,21 @@ import { Description, ErrorMessage, Field, Label } from './catalyst/fieldset'
 import { Input } from './catalyst/input'
 import { useDialog } from './use-dialog'
 
-type Controlled = { open: boolean; onOpen: () => void; onClose: () => void }
-
 /**
- * The actions of a due window (book, done, skip) with their dialogs. The done dialog can be
- * controlled from outside, e.g. by `?action=done`.
+ * The actions of a due window: book and skip open their own dialogs, "Erledigt" calls `onDone`
+ * (the done dialog is opened by the URL, `?action=done`, see `DoneDialog`).
  */
 export function DueActions({
   checkup,
   due,
-  done: doneControl,
+  onDone,
 }: {
   checkup: Checkup
   due: Due
-  done?: Controlled
+  onDone: () => void
 }) {
   const bookDialog = useDialog()
   const skipDialog = useDialog()
-  const ownDone = useDialog()
-  const [doneKey, setDoneKey] = useState(0)
-  const done: Controlled & { key: number } = doneControl
-    ? { ...doneControl, key: doneKey }
-    : { open: ownDone.open, onOpen: ownDone.show, onClose: ownDone.close, key: ownDone.key }
-  const openDone = () => {
-    setDoneKey((k) => k + 1)
-    done.onOpen()
-  }
-
   const isBooked = due.state === 'booked' || due.state === 'confirm'
 
   return (
@@ -51,7 +39,7 @@ export function DueActions({
       <div className="flex flex-wrap gap-2">
         {isBooked ? (
           <>
-            <Button color={due.state === 'confirm' ? 'dark/zinc' : 'white'} onClick={openDone}>
+            <Button color={due.state === 'confirm' ? 'dark/zinc' : 'white'} onClick={onDone}>
               Erledigt
             </Button>
             <Button outline onClick={bookDialog.show}>
@@ -66,7 +54,7 @@ export function DueActions({
             >
               Gebucht…
             </Button>
-            <Button outline onClick={openDone}>
+            <Button outline onClick={onDone}>
               Erledigt
             </Button>
           </>
@@ -79,13 +67,29 @@ export function DueActions({
       <Dialog open={bookDialog.open} onClose={bookDialog.close} size="sm">
         <BookForm key={bookDialog.key} checkup={checkup} due={due} onDone={bookDialog.close} />
       </Dialog>
-      <Dialog open={done.open} onClose={done.onClose} size="sm">
-        <DoneForm key={done.key} checkup={checkup} due={due} onDone={done.onClose} />
-      </Dialog>
       <Dialog open={skipDialog.open} onClose={skipDialog.close} size="sm">
         <SkipForm key={skipDialog.key} checkup={checkup} onDone={skipDialog.close} />
       </Dialog>
     </>
+  )
+}
+
+/** The "Erledigt" dialog; its open state lives in the URL (`?action=done`). */
+export function DoneDialog({
+  checkup,
+  due,
+  open,
+  onClose,
+}: {
+  checkup: Checkup
+  due: Due
+  open: boolean
+  onClose: () => void
+}) {
+  return (
+    <Dialog open={open} onClose={onClose} size="sm">
+      <DoneForm checkup={checkup} due={due} onDone={onClose} />
+    </Dialog>
   )
 }
 

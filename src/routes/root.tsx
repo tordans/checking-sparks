@@ -1,19 +1,10 @@
 import { Cog6ToothIcon } from '@heroicons/react/20/solid'
-import { createRootRoute, Link, Outlet, redirect, useLocation } from '@tanstack/react-router'
+import { createRootRoute, Link, Outlet, useLocation } from '@tanstack/react-router'
 import { PersonDot } from '@/components/person-dot'
 import { SyncStatus } from '@/components/sync-status'
 import { useConnection, useDoc } from '@/sync/store'
 
 export const rootRoute = createRootRoute({
-  beforeLoad: ({ location }) => {
-    const { pathname, searchStr, hash } = location
-    if (pathname.length <= 1 || !pathname.endsWith('/')) return
-    const stripped = pathname.replace(/\/+$/, '') || '/'
-    throw redirect({
-      href: `${stripped}${searchStr}${hash ? `#${hash}` : ''}`,
-      replace: true,
-    })
-  },
   errorComponent: function RootError() {
     return (
       <main className="mx-auto grid min-h-svh max-w-2xl place-content-center gap-2 p-6">

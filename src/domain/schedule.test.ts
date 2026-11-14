@@ -176,7 +176,7 @@ describe('computeDue: booked, confirm', () => {
 describe('computeDue: seasonal (Oct–Dec)', () => {
   const flu = checkup({
     id: 'flu',
-    schedule: { kind: 'seasonal', startMonth: 10, endMonth: 12, everyYears: 1 },
+    schedule: { kind: 'seasonal', startMonth: 10, endMonth: 12 },
   })
 
   it('without history: the current season while it runs', () => {
@@ -205,7 +205,7 @@ describe('computeDue: seasonal (Oct–Dec)', () => {
     expect(computeDue(flu, [], '2027-08-20')?.state).toBe('book')
   })
 
-  it('anchor: next season at least everyYears after the anchor year', () => {
+  it('anchor: next season starts the year after the anchor year', () => {
     const done = occurrence({
       checkupId: 'flu',
       status: 'done',
@@ -213,8 +213,6 @@ describe('computeDue: seasonal (Oct–Dec)', () => {
       windowStart: '2026-10-01',
     })
     expect(computeDue(flu, [done], '2026-12-01')?.windowStart).toBe('2027-10-01')
-    const everyOther = { ...flu, schedule: { ...flu.schedule, everyYears: 2 } } as Checkup
-    expect(computeDue(everyOther, [done], '2026-12-01')?.windowStart).toBe('2028-10-01')
   })
 
   it('anchor from a skipped season (windowEnd)', () => {
@@ -249,7 +247,7 @@ describe('computeDue: seasonal (Oct–Dec)', () => {
 describe('computeDue: seasonal wrapping the year end (Nov–Feb)', () => {
   const wrap = checkup({
     id: 'wrap',
-    schedule: { kind: 'seasonal', startMonth: 11, endMonth: 2, everyYears: 1 },
+    schedule: { kind: 'seasonal', startMonth: 11, endMonth: 2 },
   })
 
   it('in November: the season starting this year', () => {
@@ -302,7 +300,7 @@ describe('computeDue: seasonal wrapping the year end (Nov–Feb)', () => {
 
   it('supports a one-month season', () => {
     const march = checkup({
-      schedule: { kind: 'seasonal', startMonth: 3, endMonth: 3, everyYears: 1 },
+      schedule: { kind: 'seasonal', startMonth: 3, endMonth: 3 },
     })
     expect(computeDue(march, [], '2027-03-10')).toMatchObject({
       windowStart: '2027-03-01',

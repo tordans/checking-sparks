@@ -1,9 +1,10 @@
-# Checking Sparks – Plan (Entwurf, 2026-10-21)
+# Checking Sparks – Plan
 
 Familien-Werkzeug für wiederkehrende Arzttermine (Vorsorge).
 Grundlage: [docs/research.md](docs/research.md).
 
-Status: **Entwurf**, Grundsatzentscheidungen vom 2026-10-21 eingetragen (Abschnitt 9).
+Status: umgesetzt und deployt; die Entscheidungen stehen in Abschnitt 9. Die technische Umsetzung
+steht in [docs/architecture.md](docs/architecture.md).
 
 ## 1. Bauen oder nutzen?
 
@@ -60,16 +61,15 @@ Tageseintrag pro Person später nachrüstbar wäre.
 
 ## 5. Erinnerungen
 
-| Anlass | Wann | Ziel (Deep Link) |
-| --- | --- | --- |
-| Buchungsfenster beginnt | einmal, dann wöchentlich bis „gebucht“ | `/person/:id/vorsorge/:art` |
-| Durchführungsfenster endet bald, noch nicht gebucht | 2 Wochen vorher | dito |
-| Termin am nächsten Tag | Vorabend | dito |
-| Nach dem Termin | Folgetag: „erledigt?“ | dito, Dialog „erledigt“ |
+Es gibt vier Anlässe: das Buchungsfenster beginnt (danach wöchentlich bis „gebucht“), das
+Durchführungsfenster endet bald, der Termin ist morgen, und am Tag nach dem Termin die Frage
+„erledigt?“. Jede Nachricht öffnet per Deep Link die passende Vorsorge, die letzte direkt den
+Dialog „Erledigt“. Genaue Regeln, Zeiten und Pfade:
+[docs/architecture.md](docs/architecture.md#reminder-plan-domainremindersts).
 
-**Entschieden: Web Push.** Der Cronjob auf dem Webspace verschickt die Nachrichten an alle
-registrierten Geräte der Erwachsenen (Abo pro Gerät, nicht pro Person). Jede Nachricht nennt
-Person und Vorsorge im Klartext („Kind: U9 bis 15.03. buchen“) und öffnet die passende Stelle.
+**Entschieden: Web Push.** Ein stündlicher Cronjob auf dem Webspace verschickt die Nachrichten an
+alle registrierten Geräte der Erwachsenen (Abo pro Gerät, nicht pro Person). Jede Nachricht nennt
+Person und Vorsorge im Klartext („Kind: U9 bis 15.03. buchen“).
 
 Datenschutz der Nachricht: Web-Push-Inhalte sind nach RFC 8291 Ende-zu-Ende verschlüsselt
 (Schlüssel nur im Browser des Geräts). Apples bzw. Googles Push-Dienst sieht nur Metadaten
@@ -83,50 +83,42 @@ Kalender-Export (`.ics`) für einen konkreten gebuchten Termin ist ein kleines E
 Anforderungen: mehrere Geräte (2 iPhones, Laptops), zwei Erwachsene, keine dauerhafte Bindung
 an einen Anbieter, jederzeit vollständiger Export.
 
-**Entschieden: eigener Webspace** mit Ende-zu-Ende-Verschlüsselung, Konzept aus
-`vacation-planner/docs/central-storage-plan.md`.
+**Entschieden: eigener Webspace** mit Ende-zu-Ende-Verschlüsselung (Konzept aus
+`vacation-planner/docs/central-storage-plan.md`):
 
-- Statische App + ein PHP-Endpunkt; die Daten liegen als ein JSON-Dokument pro Familie
-  (oder SQLite/MariaDB-Zeile), Versionierung per `If-Match`, bei Konflikt neu laden und
-  Änderungen auf Datensatz-Ebene zusammenführen (jeder Datensatz hat `id` + `updatedAt`).
-- Zugang über einen geheimen Familienschlüssel im URL-Fragment (einmal pro Gerät öffnen,
-  danach in localStorage). Kein Konto, kein Login.
-- Ende-zu-Ende-Verschlüsselung: Der Server sieht nur einen verschlüsselten Blob
-  (Web Crypto: AES-GCM, Schlüssel per PBKDF2 aus der Familien-Passphrase, einmal pro Gerät
-  eingeben). Passphrase verloren = Daten verloren → regelmäßiger JSON-Export als Backup.
-- Konflikte: Weil der Server nicht hineinsehen kann, führt der Client zusammen. Bei `409` lädt
-  er die neue Version, entschlüsselt, führt Datensätze nach `id`/`updatedAt` zusammen und
-  speichert erneut.
-- Cronjob auf dem Webspace verschickt Web Push. Weil der Server die Daten nicht lesen kann,
-  legt die App bei jedem Speichern zusätzlich einen unverschlüsselten **Erinnerungsplan** ab:
-  Datum, Deep-Link-Pfad und Nachrichtentext (Vorname + Vorsorge + Aktion). Entschieden: Das ist
-  in Ordnung, weil daraus nur allgemein übliche Vorsorgetermine hervorgehen. Notizen, Ärzte und
-  Verlauf bleiben verschlüsselt.
-- localStorage/IndexedDB als Offline-Cache; Import/Export als JSON-Datei (Backup in iCloud Drive
-  über das Teilen-Menü).
+- Eine statische App und eine kleine PHP-API; auf dem Server liegt pro Familie ein verschlüsselter
+  Blob. Zugang über einen geheimen Familienschlüssel im Kopplungslink, kein Konto, kein Login.
+- Der Server kann nicht hineinsehen. Die Passphrase bleibt auf dem Gerät; ist sie verloren, sind
+  die Daten verloren, deshalb gibt es den JSON-Export als Backup (z. B. in iCloud Drive).
+- Konflikte führt der Client zusammen (Datensatz-Ebene, das Neuere gewinnt).
+- Weil der Server die Daten nicht lesen kann, lädt die App beim Synchronisieren zusätzlich einen
+  unverschlüsselten **Erinnerungsplan** hoch (Datum, Deep-Link-Pfad, Nachrichtentext aus Vorname,
+  Vorsorge und Aktion). Entschieden: Das ist in Ordnung, weil daraus nur allgemein übliche
+  Vorsorgetermine hervorgehen. Notizen, Praxen und Verlauf bleiben verschlüsselt.
+- localStorage ist der Offline-Cache; ohne Server bleibt alles auf dem Gerät.
+
+Verschlüsselung, Sync und API im Detail: [docs/architecture.md](docs/architecture.md). Was wo
+liegt: [docs/privacy.md](docs/privacy.md).
 
 Verworfen: Google Sheet (Google-Bindung, kein Push), nur lokal (kein Sync zwischen euch).
 
 ## 7. Technik
 
-- Gleicher Stack wie vacation-planner: Bun, Vite, React 19, TanStack Router, Zod, date-fns,
-  Tailwind 4, oxlint, oxfmt, Knip, Vitest. Keine weiteren Laufzeit-Abhängigkeiten ohne Grund.
-- PWA (Manifest + Service Worker) – nötig für Home-Screen-Installation, Web Push und Offline.
-- Routing über Pfade, damit Deep Links aus Benachrichtigungen genau ins Formular führen.
-- Datenmodell versioniert (`schemaVersion`) mit Migrationen; Zod für Import und Server-Antworten.
-- Datums-Logik (Zyklen, Fenster, Status) als reine Funktionen mit vielen Tests – das ist der
-  fehleranfällige Teil.
-- Gesundheitsdaten nie in Query-Strings oder Logs; Server-Logs ohne Request-Body.
+Bun, Vite, React 19, TanStack Router, Zod, date-fns, Tailwind 4 und die übrige Werkzeugkette
+stehen in [docs/architecture.md](docs/architecture.md#tooling). Zwei Grundsätze: Datums-Logik
+(Zyklen, Fenster, Status) sind reine, gut getestete Funktionen, und Gesundheitsdaten kommen nie in
+Query-Strings oder Logs. Die App ist eine PWA (Home-Screen, Web Push, Offline) und nutzt Pfad-Routing,
+damit Deep Links aus Benachrichtigungen direkt zur richtigen Stelle führen.
 
 ## 8. Phasen
 
-1. **Grundgerüst**: Repo-Setup, Datenmodell, Zyklus-Logik mit Tests, Personen, Vorsorge-Arten,
-   „Jetzt zu tun“, lokal gespeichert, JSON-Export/-Import. ✅ gebaut
-2. **Sync**: PHP-Endpunkt, Verschlüsselung, Zusammenführen, Deploy auf den Webspace.
-   ✅ gebaut; Deploy-Workflow fertig, aber noch nie gegen all-inkl gelaufen
-3. **Erinnerungen**: PWA, Web Push + Cron, Deep Links. ✅ gebaut, lokal in Chrome getestet;
-   iPhone ungetestet
-4. **Vorlagen-Katalog** für Erwachsene und Kinder. ✅ gebaut (`src/domain/templates.ts`)
+Alle Phasen sind erledigt.
+
+1. **Grundgerüst**: Datenmodell, Zyklus-Logik mit Tests, Personen, Vorsorge-Arten,
+   „Jetzt zu tun“, lokal gespeichert, JSON-Export/-Import. ✅
+2. **Sync**: PHP-API, Verschlüsselung, Zusammenführen, Deploy auf den Webspace. ✅ deployt
+3. **Erinnerungen**: PWA, Web Push + Cron, Deep Links. ✅ in Chrome getestet; iPhone ungetestet
+4. **Vorlagen-Katalog** für Erwachsene und Kinder. ✅ (`src/domain/templates.ts`)
 
 Technische Details: [docs/architecture.md](docs/architecture.md),
 Einrichtung des Webspace: [docs/deploy.md](docs/deploy.md).
@@ -145,10 +137,12 @@ Entschieden am 2026-10-21:
 - Vorsorge-Vorlagen: [docs/vorsorge-vorlagen.md](docs/vorsorge-vorlagen.md), geprüft gegen
   G-BA, STIKO und IGeL-Monitor.
 
+Umgesetzt: Der Cronjob bei all-inkl ruft stündlich einen geschützten HTTP-Endpunkt auf
+(`/api/push/run`), das Deploy läuft über GitHub Actions per FTPS.
+
 Noch offen:
 
-- Cronjobs bei all-inkl im Tarif prüfen (KAS → Tools → Cronjobs ruft eine URL auf); der Cron
-  wäre dann ein geschützter HTTP-Endpunkt `POST /api/push/run`.
+- Web Push auf dem iPhone testen.
 - Hero-Subline und Support-Zeile für Checking Sparks.
 
 ## 10. Name und Domain

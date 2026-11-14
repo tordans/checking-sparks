@@ -42,7 +42,6 @@ function fakeApi() {
     async putReminders(reminders: Reminder[]) {
       server.reminders = reminders
       server.reminderPuts += 1
-      return { count: reminders.length }
     },
   }
   return { server, api }

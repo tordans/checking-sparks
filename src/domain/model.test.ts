@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { emptyDoc, migrateDoc, parseDoc } from './model'
+import { emptyDoc, parseDoc } from './model'
 import { checkup, docWith, occurrence, person } from './test-helpers'
 
 describe('emptyDoc', () => {
@@ -18,7 +18,7 @@ describe('parseDoc', () => {
         checkup(),
         checkup({
           id: 'c2',
-          schedule: { kind: 'seasonal', startMonth: 11, endMonth: 2, everyYears: 1 },
+          schedule: { kind: 'seasonal', startMonth: 11, endMonth: 2 },
         }),
         checkup({
           id: 'c3',
@@ -70,24 +70,28 @@ describe('parseDoc', () => {
     const badHour = docWith({ settings: { reminderHour: 24, updatedAt: '2026-01-01T00:00:00Z' } })
     expect(parseDoc(badHour).success).toBe(false)
     const badMonth = docWith({
-      checkups: [
-        checkup({ schedule: { kind: 'seasonal', startMonth: 13, endMonth: 2, everyYears: 1 } }),
-      ],
+      checkups: [checkup({ schedule: { kind: 'seasonal', startMonth: 13, endMonth: 2 } })],
     })
     expect(parseDoc(badMonth).success).toBe(false)
     const badStatus = docWith({ occurrences: [occurrence({ status: 'maybe' as 'done' })] })
     expect(parseDoc(badStatus).success).toBe(false)
   })
 
+  it('strips the removed everyYears field of old documents', () => {
+    const schedule = { kind: 'seasonal', startMonth: 10, endMonth: 12, everyYears: 2 }
+    const raw = { ...docWith({ checkups: [checkup()] }) }
+    raw.checkups = [{ ...raw.checkups[0]!, schedule } as never]
+    const result = parseDoc(raw)
+    expect(result.success).toBe(true)
+    expect(result.data?.checkups[0]?.schedule).toEqual({
+      kind: 'seasonal',
+      startMonth: 10,
+      endMonth: 12,
+    })
+  })
+
   it('rejects non-objects', () => {
     expect(parseDoc(null).success).toBe(false)
     expect(parseDoc('nope').success).toBe(false)
-  })
-})
-
-describe('migrateDoc', () => {
-  it('is the identity for v1', () => {
-    const doc = emptyDoc()
-    expect(migrateDoc(doc)).toBe(doc)
   })
 })

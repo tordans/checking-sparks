@@ -1,6 +1,6 @@
 import { createRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
-import { z } from 'zod'
+import * as z from 'zod/mini'
 import { Card } from '@/components/card'
 import { Button } from '@/components/catalyst/button'
 import { Dialog, DialogBody, DialogTitle } from '@/components/catalyst/dialog'
@@ -8,7 +8,7 @@ import { Heading, Subheading } from '@/components/catalyst/heading'
 import { Text } from '@/components/catalyst/text'
 import { CheckupForm } from '@/components/checkup-form'
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { DueActions } from '@/components/due-actions'
+import { DoneDialog, DueActions } from '@/components/due-actions'
 import { Page } from '@/components/page'
 import { PersonDot } from '@/components/person-dot'
 import { StateBadge } from '@/components/state-badge'
@@ -26,7 +26,7 @@ import { PersonNotFound, personRoute } from './person'
 
 const checkupSearchSchema = z.object({
   /** Deep link from the "War der Termin?" reminder. */
-  action: z.enum(['done']).optional().catch(undefined),
+  action: z.catch(z.optional(z.enum(['done'])), undefined),
 })
 
 export const checkupDetailRoute = createRoute({
@@ -206,11 +206,8 @@ function StateCard({
           Zeitraum {windowText(due, today)}
         </Text>
       </div>
-      <DueActions
-        checkup={checkup}
-        due={due}
-        done={{ open: doneOpen, onOpen: onDoneOpen, onClose: onDoneClose }}
-      />
+      <DueActions checkup={checkup} due={due} onDone={onDoneOpen} />
+      <DoneDialog checkup={checkup} due={due} open={doneOpen} onClose={onDoneClose} />
     </Card>
   )
 }

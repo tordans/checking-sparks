@@ -3,7 +3,6 @@ import {
   addDays,
   addMonths,
   compareDates,
-  daysBetween,
   formatDate,
   formatLong,
   formatShort,
@@ -82,9 +81,7 @@ describe('comparison and differences', () => {
     expect(compareDates('2027-01-01', '2027-01-01')).toBe(0)
   })
 
-  it('counts days and completed months', () => {
-    expect(daysBetween('2027-02-28', '2027-03-01')).toBe(1)
-    expect(daysBetween('2027-03-01', '2027-02-28')).toBe(-1)
+  it('counts completed months', () => {
     expect(monthsBetween('2022-03-15', '2027-03-14')).toBe(59)
     expect(monthsBetween('2022-03-15', '2027-03-15')).toBe(60)
   })

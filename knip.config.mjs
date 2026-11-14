@@ -2,17 +2,9 @@
 const strict = process.env.KNIP_STRICT === '1'
 
 export default {
-  entry: [
-    'src/main.tsx',
-    'src/router.tsx',
-    'tests/**/*.ts',
-    'vite.config.ts',
-    'vitest.config.ts',
-    'oxlint.config.mjs',
-    'oxfmt.config.mjs',
-  ],
-  // public/sw.js is loaded by the browser, not imported.
-  ignore: ['api/**', 'public/**'],
+  // Entries come from the vite/vitest/oxlint plugins and index.html. public/sw.js is loaded by
+  // the browser, not imported.
+  ignore: ['public/**'],
   rules: {
     files: 'error',
     dependencies: 'error',

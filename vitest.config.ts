@@ -8,8 +8,8 @@ export default defineConfig({
     },
   },
   test: {
-    // Unit tests live next to the code (src/**) or in tests/ for cross-cutting suites.
-    include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
+    // Unit tests live next to the code.
+    include: ['src/**/*.test.ts'],
     passWithNoTests: true,
   },
 })

@@ -5,7 +5,7 @@
   //   noUnusedLocals / noUnusedParameters — delegated to oxlint; avoid duplicate signal with tsc
   // SPA (not TanStack Start): verbatimModuleSyntax true is OK — no client/server split to leak.
   // Never install or extend @total-typescript/tsconfig — keep settings inlined with these comments.
-  "include": ["src", "vite.config.ts", "vitest.config.ts", "tests"],
+  "include": ["src", "vite.config.ts", "vitest.config.ts"],
   "exclude": ["node_modules", "dist"],
   "compilerOptions": {
     "target": "ES2025",

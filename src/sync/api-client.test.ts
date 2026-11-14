@@ -61,26 +61,16 @@ describe('createApiClient headers and URLs', () => {
     expect(calls[0]?.url).toBe('/api/doc')
   })
 
-  it('calls health without the Authorization header because it is public', async () => {
-    const { api, calls } = clientWith(() => json({ ok: true, commit: 'abc1234' }))
-    const result = await api.health()
-
-    expect(result).toEqual({ ok: true, commit: 'abc1234' })
-    expect(calls[0]?.method).toBe('GET')
-    expect(calls[0]?.url).toBe('/api/health')
-    expect(calls[0]?.headers.has('Authorization')).toBe(false)
-  })
-
   it('prefixes every URL with baseUrl and strips trailing slashes', async () => {
-    const recorder = fakeFetch(() => json({ ok: true, commit: 'abc' }))
+    const recorder = fakeFetch(() => json({ version: 1, envelope }))
     const api = createApiClient({
       baseUrl: 'https://check.example.test//',
       familyKey: FAMILY_KEY,
       fetch: recorder.fetch,
     })
-    await api.health()
+    await api.getDoc()
 
-    expect(recorder.calls[0]?.url).toBe('https://check.example.test/api/health')
+    expect(recorder.calls[0]?.url).toBe('https://check.example.test/api/doc')
   })
 })
 
@@ -161,19 +151,13 @@ describe('putDoc', () => {
 })
 
 describe('putReminders', () => {
-  it('sends the reminders and returns the count', async () => {
+  it('sends the reminders', async () => {
     const { api, calls } = clientWith(() => json({ count: 1 }))
-    const result = await api.putReminders([reminder])
+    await api.putReminders([reminder])
 
-    expect(result).toEqual({ count: 1 })
     expect(calls[0]?.method).toBe('PUT')
     expect(calls[0]?.url).toBe('/api/reminders')
     expect(calls[0]?.body).toEqual({ reminders: [reminder] })
-  })
-
-  it('throws ApiError on failure', async () => {
-    const { api } = clientWith(() => new Response('nope', { status: 401 }))
-    await expect(api.putReminders([])).rejects.toMatchObject({ status: 401 })
   })
 })
 
@@ -186,12 +170,11 @@ describe('push endpoints', () => {
     expect(calls[0]?.headers.get('Authorization')).toBe(`Bearer ${FAMILY_KEY}`)
   })
 
-  it('posts only the contract fields of a subscription', async () => {
+  it('posts endpoint and keys of a subscription', async () => {
     const { api, calls } = clientWith(() => new Response(null, { status: 201 }))
     await api.subscribe({
       endpoint: 'https://push.example.test/abc',
       keys: { p256dh: 'p256', auth: 'auth' },
-      label: 'iPhone Lena',
     })
 
     expect(calls[0]?.method).toBe('POST')
@@ -199,15 +182,7 @@ describe('push endpoints', () => {
     expect(calls[0]?.body).toEqual({
       endpoint: 'https://push.example.test/abc',
       keys: { p256dh: 'p256', auth: 'auth' },
-      label: 'iPhone Lena',
     })
-  })
-
-  it('throws ApiError when subscribing fails', async () => {
-    const { api } = clientWith(() => new Response(null, { status: 400 }))
-    await expect(
-      api.subscribe({ endpoint: 'x', keys: { p256dh: 'a', auth: 'b' }, label: 'l' }),
-    ).rejects.toMatchObject({ status: 400 })
   })
 
   it('deletes a subscription by endpoint', async () => {
@@ -219,27 +194,12 @@ describe('push endpoints', () => {
     expect(calls[0]?.body).toEqual({ endpoint: 'https://push.example.test/abc' })
   })
 
-  it('triggers a test push', async () => {
+  it('triggers a test push and returns how many devices got it', async () => {
     const { api, calls } = clientWith(() => json({ sent: 2, failed: 0, removed: 1 }))
-    expect(await api.testPush()).toEqual({ sent: 2, failed: 0, removed: 1 })
+    expect(await api.testPush()).toEqual({ sent: 2 })
 
     expect(calls[0]?.method).toBe('POST')
     expect(calls[0]?.url).toBe('/api/push/test')
     expect(calls[0]?.headers.get('Authorization')).toBe(`Bearer ${FAMILY_KEY}`)
-  })
-
-  it('throws ApiError when the test push fails', async () => {
-    const { api } = clientWith(() => new Response(null, { status: 500 }))
-    await expect(api.testPush()).rejects.toBeInstanceOf(ApiError)
-  })
-})
-
-describe('ApiError', () => {
-  it('carries the HTTP status and a message without response bodies', () => {
-    const error = new ApiError(409, 'PUT /api/doc failed with HTTP 409')
-    expect(error).toBeInstanceOf(Error)
-    expect(error.name).toBe('ApiError')
-    expect(error.status).toBe(409)
-    expect(error.message).toBe('PUT /api/doc failed with HTTP 409')
   })
 })

@@ -11,7 +11,6 @@ export interface CheckupFormValues {
   months: string
   startMonth: string
   endMonth: string
-  everyYears: string
   windowStart: string
   windowEnd: string
   windowMonths: string
@@ -59,7 +58,6 @@ export function toFormValues(checkup: Checkup, today: string): CheckupFormValues
     months: schedule.kind === 'interval' ? String(schedule.months) : '12',
     startMonth: schedule.kind === 'seasonal' ? String(schedule.startMonth) : '10',
     endMonth: schedule.kind === 'seasonal' ? String(schedule.endMonth) : '12',
-    everyYears: schedule.kind === 'seasonal' ? String(schedule.everyYears) : '1',
     windowStart: schedule.kind === 'once' ? schedule.windowStart : today,
     windowEnd: schedule.kind === 'once' ? schedule.windowEnd : addDays(addMonths(today, 12), -1),
     windowMonths: String(checkup.windowMonths),
@@ -109,10 +107,8 @@ export function fromFormValues(
     case 'seasonal': {
       const startMonth = wholeNumber(values.startMonth, 1, 12)
       const endMonth = wholeNumber(values.endMonth, 1, 12)
-      const everyYears = wholeNumber(values.everyYears, 1, 50)
-      if (everyYears === null) errors.everyYears = 'Eine Zahl ab 1.'
-      if (startMonth !== null && endMonth !== null && everyYears !== null) {
-        schedule = { kind: 'seasonal', startMonth, endMonth, everyYears }
+      if (startMonth !== null && endMonth !== null) {
+        schedule = { kind: 'seasonal', startMonth, endMonth }
       }
       break
     }
