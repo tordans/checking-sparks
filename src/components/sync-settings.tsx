@@ -75,6 +75,11 @@ export function SyncSettings() {
                 {copied ? 'Kopiert' : 'Kopieren'}
               </Button>
             </div>
+            <Text className="mt-3">
+              Auf iPhone und iPad: Link in Safari öffnen, Passphrase eingeben, dann „Teilen“ → „Zum
+              Home-Bildschirm“. Die App auf dem Home-Bildschirm ist dann schon verbunden; die
+              Passphrase fragt sie einmal neu ab.
+            </Text>
           </Field>
 
           {server.keyRemembered ? (

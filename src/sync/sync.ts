@@ -349,6 +349,11 @@ export function startSync(): void {
   void connect(server.familyKey).resume()
 }
 
+/** Whether this device already has a family key (a server configured). */
+export function isPaired(): boolean {
+  return Boolean(defaultStore.getServer())
+}
+
 /** `/verbinden#key=…`: stores the family key and asks the server whether a document exists. */
 export function pairDevice(familyKey: string): void {
   const sameKey = defaultStore.getServer()?.familyKey === familyKey

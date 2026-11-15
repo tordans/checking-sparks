@@ -6,7 +6,7 @@ import { Text } from '@/components/catalyst/text'
 import { Page } from '@/components/page'
 import { PassphraseForm } from '@/components/passphrase-form'
 import { useConnection, useServerConfig } from '@/sync/store'
-import { pairDevice, syncNow } from '@/sync/sync'
+import { isPaired, pairDevice, syncNow } from '@/sync/sync'
 import { rootRoute } from './root'
 
 /** `/verbinden#key=<familyKey>`: stores the key and removes the fragment from the address bar. */
@@ -16,7 +16,10 @@ export const pairRoute = createRoute({
   beforeLoad: ({ location }) => {
     if (!location.hash) return
     const key = new URLSearchParams(location.hash).get('key')?.trim()
-    if (key) pairDevice(key)
+    // The home-screen app keeps the key from the day it was added (see public/home-screen.js).
+    // Once this device has a server, that old key must not overwrite the current pairing.
+    const standalone = window.matchMedia('(display-mode: standalone)').matches
+    if (key && (!standalone || !isPaired())) pairDevice(key)
     // Navigating without the hash replaces the history entry, so the key does not stay visible.
     throw redirect({ to: '/verbinden', replace: true })
   },

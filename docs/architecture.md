@@ -202,7 +202,9 @@ replaces the unsent ones, so booking a date stops the booking reminders.
 
 ## PWA and push
 
-- `public/manifest.webmanifest` (`display: standalone`, German name, icons), `public/sw.js`
+- `public/manifest.webmanifest` (`display: standalone`, German name, icons), `public/home-screen.js`
+  (classic script in `index.html`: on iOS Safari with a known family key it swaps in a `data:` manifest whose
+  `start_url` carries the key, so the home-screen app can pair itself; see the file's header), `public/sw.js`
   written by hand: app-shell cache, `push` → `showNotification(title, { body, icon, badge, tag: id, data: { path } })`
   with the payload `{ id, title, body, path }` (`id` = reminder id, or `"test"`; the tag replaces an
   older notification of the same reminder), `notificationclick` → focus an existing window and navigate, or `openWindow(path)`.
@@ -218,7 +220,7 @@ replaces the unsent ones, so booking a date stops the booking reminders.
   deployment: [deploy.md](deploy.md).
 
 - Content-Security-Policy (`api/deploy/htaccess`, mirrored in `preview.headers` of `vite.config.ts`):
-  everything `'self'`, no inline script or style, no framing, no plugins; `deploy/check.sh` asserts
+  everything `'self'` (manifests also `data:`, for the iOS home-screen link), no inline script or style, no framing, no plugins; `deploy/check.sh` asserts
   it. New external hosts or inline code need a conscious change of the policy.
 
 ## Routes

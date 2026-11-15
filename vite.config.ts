@@ -14,7 +14,7 @@ const contentSecurityPolicy = [
   "font-src 'self'",
   "connect-src 'self'",
   "worker-src 'self'",
-  "manifest-src 'self'",
+  "manifest-src 'self' data:",
   "frame-ancestors 'none'",
   "base-uri 'none'",
   "form-action 'self'",

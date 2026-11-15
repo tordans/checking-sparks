@@ -20,6 +20,7 @@ für Datenschutzerklärung und ggf. Impressum verantwortlich. Die App zeigt eine
 | --- | --- | --- |
 | Familiendokument im Klartext: Personen (Name, Geburtsdatum, Geschlecht, Farbe), Vorsorgen (Titel, Praxis, Telefon, Notiz, Zyklus), Termine, Verlauf, Einstellungen | `localStorage` (`checking-sparks:doc:v1`) | damit die App offline und ohne Passphrase-Eingabe bei jedem Start funktioniert |
 | Familienschlüssel (Zugang zum Server) | `localStorage` (`checking-sparks:server:v1`) | kommt aus dem Kopplungslink |
+| Familienschlüssel in der Startadresse des Home-Bildschirm-Symbols | iPhone/iPad, beim Hinzufügen zum Home-Bildschirm | iOS speichert die Startadresse mit dem Schlüssel; die Passphrase steht nicht darin |
 | Abgeleiteter Datenschlüssel, nur bei „Passphrase auf diesem Gerät merken“ | IndexedDB (`checking-sparks`) | nicht auslesbar (non-extractable CryptoKey); die Passphrase selbst wird nie gespeichert |
 | App-Dateien | Service-Worker-Cache | keine Daten |
 
