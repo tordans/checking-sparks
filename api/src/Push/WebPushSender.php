@@ -6,6 +6,7 @@ namespace CheckingSparks\Api\Push;
 
 use CheckingSparks\Api\Config;
 use CheckingSparks\Api\Logger;
+use GuzzleHttp\Client;
 use Minishlink\WebPush\Subscription;
 use Minishlink\WebPush\WebPush;
 
@@ -56,7 +57,9 @@ final class WebPushSender implements PushSender
                 ],
             ],
             [],
-            10,
+            // web-push 11 takes a PSR-18 client instead of a timeout. http_errors off: a 404/410
+            // from the push service must come back as a response (expired subscription), not throw.
+            new Client(['timeout' => 10, 'http_errors' => false]),
         );
     }
 }
