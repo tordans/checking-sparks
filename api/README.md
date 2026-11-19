@@ -41,7 +41,7 @@ Other rules:
 - **If-Match** takes the current version in quotes, as the client sends it (`"3"`). Any other value,
   including `*`, `3` and garbage, counts as a stale precondition: `409` with the current document (not `428`).
 - **Push endpoints:** the server POSTs to the stored endpoints, so `POST`/`DELETE
-/api/push/subscriptions` only accept `https` URLs without credentials whose host (case-insensitive)
+  /api/push/subscriptions` only accept `https` URLs without credentials whose host (case-insensitive)
   is `fcm.googleapis.com`, `android.googleapis.com`, `updates.push.services.mozilla.com`,
   `push.apple.com` or any subdomain of it (e.g. `web.push.apple.com`), or `notify.windows.com` or any
   subdomain of it. Everything else is `422 invalid_endpoint`. A new push service needs a line in
